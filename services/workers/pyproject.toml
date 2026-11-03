@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arena-workers"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "psycopg[binary,pool]>=3.2",
+  "httpx>=0.27",
+  "websockets>=13",
+  "pydantic>=2.8",
+  "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "mypy>=1.11"]
+
+[project.scripts]
+arena-ingest = "arena_workers.ingest.main:run"
+arena-strategies = "arena_workers.strategies.main:run"
+arena-scorer = "arena_workers.scorer.main:run"
+arena-analyst = "arena_workers.analyst.main:run"
+
+[tool.setuptools.packages.find]
+include = ["arena_workers*"]
+
+[tool.setuptools.package-data]
+"arena_workers" = ["py.typed"]
+"arena_workers.analyst" = ["prompt.md"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["psycopg.*", "websockets.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008", "E741"]

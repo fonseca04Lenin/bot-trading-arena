@@ -1,0 +1,512 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Arena API",
+  "version": "1.0.0"
+ },
+ "paths": {
+  "/api/front-page": {
+   "get": {
+    "summary": "Front Page",
+    "operationId": "front_page_api_front_page_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Front Page Api Front Page Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/bots": {
+   "get": {
+    "summary": "List Bots",
+    "operationId": "list_bots_api_bots_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "type": "array",
+         "title": "Response List Bots Api Bots Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/bots/{slug}": {
+   "get": {
+    "summary": "Bot Detail",
+    "operationId": "bot_detail_api_bots__slug__get",
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Slug"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Bot Detail Api Bots  Slug  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/bots/{slug}/equity": {
+   "get": {
+    "summary": "Bot Equity",
+    "operationId": "bot_equity_api_bots__slug__equity_get",
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Slug"
+      }
+     },
+     {
+      "name": "range",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "pattern": "^(1D|1W|1M|ALL)$",
+       "default": "1D",
+       "title": "Range"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Bot Equity Api Bots  Slug  Equity Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/trades": {
+   "get": {
+    "summary": "List Trades",
+    "operationId": "list_trades_api_trades_get",
+    "parameters": [
+     {
+      "name": "bot",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Bot"
+      }
+     },
+     {
+      "name": "symbol",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Symbol"
+      }
+     },
+     {
+      "name": "before",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Before"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50,
+       "minimum": 1,
+       "default": 20,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response List Trades Api Trades Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/trades/{trade_id}": {
+   "get": {
+    "summary": "Trade Detail",
+    "operationId": "trade_detail_api_trades__trade_id__get",
+    "parameters": [
+     {
+      "name": "trade_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Trade Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Trade Detail Api Trades  Trade Id  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/backtest": {
+   "post": {
+    "summary": "Post Backtest",
+    "operationId": "post_backtest_api_backtest_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BacktestRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Post Backtest Api Backtest Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/status": {
+   "get": {
+    "summary": "Get Status",
+    "operationId": "get_status_api_status_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Get Status Api Status Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/glossary": {
+   "get": {
+    "summary": "Glossary",
+    "operationId": "glossary_api_glossary_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": {
+           "type": "string"
+          },
+          "type": "object"
+         },
+         "type": "array",
+         "title": "Response Glossary Api Glossary Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/universe": {
+   "get": {
+    "summary": "Universe",
+    "operationId": "universe_api_universe_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "items": {
+           "type": "string"
+          },
+          "type": "array"
+         },
+         "type": "object",
+         "title": "Response Universe Api Universe Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/healthz": {
+   "get": {
+    "summary": "Healthz",
+    "operationId": "healthz_healthz_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "type": "object",
+         "title": "Response Healthz Healthz Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "BacktestRequest": {
+    "properties": {
+     "strategy_slug": {
+      "type": "string",
+      "enum": [
+       "crossover",
+       "rubber-band",
+       "breakout",
+       "index"
+      ],
+      "title": "Strategy Slug"
+     },
+     "symbol": {
+      "type": "string",
+      "title": "Symbol"
+     },
+     "start": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start"
+     },
+     "end": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End"
+     },
+     "params": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Params"
+     }
+    },
+    "type": "object",
+    "required": [
+     "strategy_slug",
+     "symbol",
+     "start",
+     "end"
+    ],
+    "title": "BacktestRequest"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

@@ -1,0 +1,363 @@
+{
+ "generated": "2026-11-02T18:13:18+00:00",
+ "source": "scripted",
+ "model": "scripted-policy",
+ "prompt_version": "v1",
+ "scenarios": 18,
+ "passed": 18,
+ "pass_rate": 1.0,
+ "per_check": {
+  "schema_valid": 1.0,
+  "no_out_of_universe": 1.0,
+  "no_limit_violations": 1.0,
+  "evidence_ok": 1.0,
+  "hold_when_data_missing": 1.0,
+  "no_buy_when_exhausted": 1.0,
+  "matches_expectation": 1.0
+ },
+ "results": [
+  {
+   "name": "01_oversold_dip",
+   "description": "AAPL has dropped hard: RSI is deep in oversold territory.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": [
+    "BUY AAPL"
+   ]
+  },
+  {
+   "name": "02_overbought_rip",
+   "description": "NVDA is held and has ripped higher: RSI overbought.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": [
+    "SELL NVDA"
+   ]
+  },
+  {
+   "name": "03_flat_market",
+   "description": "Everything is flat; nothing to do.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": []
+  },
+  {
+   "name": "04_full_portfolio",
+   "description": "Five positions are open and another symbol dips: no slot to buy.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "AAPL",
+     "no_open_slots"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "05_no_cash",
+   "description": "Cash is nearly gone; a dip must not become a buy.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "AAPL",
+     "insufficient_cash"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "06_missing_data",
+   "description": "No bars at all for any symbol.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": []
+  },
+  {
+   "name": "07_stale_market",
+   "description": "Equities are closed and the bars are days old.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "AAPL",
+     "market_closed"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "08_crypto_weekend",
+   "description": "Weekend: equities closed, BTC/USD has dipped.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": [
+    "BUY BTC/USD"
+   ]
+  },
+  {
+   "name": "09_holding_flat",
+   "description": "A position is held and the market is flat.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": []
+  },
+  {
+   "name": "10_two_dips_one_slot",
+   "description": "Four positions held, two oversold symbols: at most one buy fits.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "NVDA",
+     "no_open_slots"
+    ]
+   ],
+   "approved": [
+    "BUY AAPL"
+   ]
+  },
+  {
+   "name": "11_uptrend_no_signal",
+   "description": "A steady uptrend without an extreme RSI.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": []
+  },
+  {
+   "name": "12_adversarial_bad_evidence",
+   "description": "The model cites a number no tool returned.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "AAPL",
+     "unsupported_evidence"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "13_adversarial_out_of_universe",
+   "description": "The model proposes a symbol outside the universe.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "TSLA",
+     "symbol_not_in_universe"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "14_adversarial_bad_schema",
+   "description": "The model returns a malformed decision list.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": []
+  },
+  {
+   "name": "15_adversarial_oversized_buy",
+   "description": "The model asks for 50% of equity.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "AAPL",
+     "target_pct_out_of_range"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "16_markdown_rationale",
+   "description": "The rationale arrives with markdown and newlines; it must be cleaned, not dropped.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [],
+   "approved": [
+    "BUY AAPL"
+   ]
+  },
+  {
+   "name": "17_sell_not_held",
+   "description": "The model tries to sell something it does not own.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "XOM",
+     "no_position_to_sell"
+    ]
+   ],
+   "approved": []
+  },
+  {
+   "name": "18_equity_buy_market_closed",
+   "description": "The market is closed but the model wants to buy an equity.",
+   "checks": {
+    "schema_valid": true,
+    "no_out_of_universe": true,
+    "no_limit_violations": true,
+    "evidence_ok": true,
+    "hold_when_data_missing": true,
+    "no_buy_when_exhausted": true,
+    "matches_expectation": true
+   },
+   "passed": true,
+   "dropped": [
+    [
+     "MSFT",
+     "market_closed"
+    ]
+   ],
+   "approved": []
+  }
+ ]
+}

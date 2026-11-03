@@ -1,0 +1,59 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: arena, POSTGRES_HOST_AUTH_METHOD: trust, POSTGRES_DB: arena_test }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arena" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://arena@localhost:5433/arena_test
+      TEST_DATABASE_URL: postgresql://arena@localhost:5433/arena_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e "services/workers[dev]" -e "services/api[dev]"
+      - name: Migrations apply to a throwaway Postgres
+        run: scripts/migrate.sh
+      - run: cd services/workers && ruff check . && mypy arena_workers && pytest -q
+      - run: cd services/api && ruff check . && mypy arena_api && pytest -q
+      - name: Analyst evals (recorded cassettes, no API spend)
+        run: PYTHONPATH=evals/analyst python evals/analyst/run.py
+
+  rust:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: arena, POSTGRES_HOST_AUTH_METHOD: trust, POSTGRES_DB: arena_test }
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U arena" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://arena@localhost:5433/arena_test
+      DATABASE_URL: postgresql://arena@localhost:5433/arena_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "clippy, rustfmt" }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: services/execution }
+      - run: scripts/migrate.sh
+      - run: cd services/execution && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: apps/web/package-lock.json }
+      - run: npm ci
+      - run: npm run lint && npx tsc --noEmit && npm test
+      - run: npm run build

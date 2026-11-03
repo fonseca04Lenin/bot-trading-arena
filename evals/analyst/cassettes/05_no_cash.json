@@ -1,0 +1,140 @@
+{
+ "source": "scripted",
+ "model": "scripted-policy",
+ "responses": [
+  {
+   "content": [
+    {
+     "type": "tool_use",
+     "id": "toolu_1_get_portfolio",
+     "name": "get_portfolio",
+     "input": {}
+    }
+   ],
+   "stop_reason": "tool_use",
+   "input_tokens": 900,
+   "output_tokens": 40
+  },
+  {
+   "content": [
+    {
+     "type": "tool_use",
+     "id": "toolu_2_SPY",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "SPY"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_QQQ",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "QQQ"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_AAPL",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "AAPL"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_MSFT",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "MSFT"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_NVDA",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "NVDA"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_AMZN",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "AMZN"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_JPM",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "JPM"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_XOM",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "XOM"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_BTCUSD",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "BTC/USD"
+     }
+    },
+    {
+     "type": "tool_use",
+     "id": "toolu_2_ETHUSD",
+     "name": "get_indicators",
+     "input": {
+      "symbol": "ETH/USD"
+     }
+    }
+   ],
+   "stop_reason": "tool_use",
+   "input_tokens": 1400,
+   "output_tokens": 120
+  },
+  {
+   "content": [
+    {
+     "type": "tool_use",
+     "id": "toolu_3_submit",
+     "name": "submit_decisions",
+     "input": {
+      "decisions": [
+       {
+        "symbol": "AAPL",
+        "action": "BUY",
+        "target_pct": 0.05,
+        "confidence": 0.6,
+        "rationale": "AAPL RSI fell to 0.06 at 190.07, so the drop looks overdone.",
+        "evidence": [
+         {
+          "metric": "rsi14",
+          "value": 0.06
+         },
+         {
+          "metric": "price",
+          "value": 190.07
+         }
+        ]
+       }
+      ],
+      "market_note": "Quiet tape; the scripted policy held most names."
+     }
+    }
+   ],
+   "stop_reason": "tool_use",
+   "input_tokens": 2600,
+   "output_tokens": 260
+  }
+ ]
+}

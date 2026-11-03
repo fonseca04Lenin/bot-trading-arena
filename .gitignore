@@ -1,0 +1,25 @@
+.env*
+!.env.example
+.venv/
+.pgdata/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+node_modules/
+.next/
+target/
+playwright-report/
+test-results/
+.logs/
+.dev.pids
+.logs-dev.out
+next-env.d.ts
+
+# Internal working files (kept locally, not published)
+SPEC.md
+CLAUDE.md
+DECISIONS.md
+.DS_Store
+*.tsbuildinfo

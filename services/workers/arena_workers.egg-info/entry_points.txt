@@ -1,0 +1,5 @@
+[console_scripts]
+arena-analyst = arena_workers.analyst.main:run
+arena-ingest = arena_workers.ingest.main:run
+arena-scorer = arena_workers.scorer.main:run
+arena-strategies = arena_workers.strategies.main:run
