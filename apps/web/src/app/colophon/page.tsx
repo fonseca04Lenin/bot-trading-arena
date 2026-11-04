@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const STACK = [
   ["Web", "Next.js (App Router), TypeScript, hand-drawn SVG charts with D3 scales"],
   ["API", "Python 3.12, FastAPI, psycopg 3, WebSockets over Postgres LISTEN/NOTIFY"],
-  ["Workers", "Python: ingest, four rule strategies, scorer, and the Analyst agent"],
+  ["Workers", "Python: ingest, five rule strategies, and scorer"],
   ["Execution", "Rust, Axum, Tokio, sqlx; idempotent orders, risk rules, sim and Alpaca paper brokers"],
   ["Data", "PostgreSQL 16 with plain SQL migrations"],
   ["Checks", "pytest, cargo test, vitest, Playwright; GitHub Actions on every push"],
@@ -23,8 +23,7 @@ export default async function Colophon() {
         <p className="kicker">How it&rsquo;s made</p>
         <h1 className="headline">Colophon</h1>
         <p className="prose">
-          Five bots trade paper money against live prices. Four follow fixed rules; one is an AI agent whose every call is checked
-          by code before an order can exist. Only The Crossover routes orders to a real broker&rsquo;s paper-trading account; the others
+          Five bots trade paper money against live prices, and all five follow fixed rules. Only The Crossover routes orders to a real broker&rsquo;s paper-trading account; the others
           are simulated against the same prices.
         </p>
       </section>
@@ -44,7 +43,6 @@ export default async function Colophon() {
               <dt>Uptime, 30 days</dt><dd>{status.uptime.overall === null ? "—" : plainPct(status.uptime.overall, 2)}</dd>
               <dt>p95 signal to submit</dt><dd>{status.p95_signal_to_submit_ms === null ? "—" : `${Math.round(status.p95_signal_to_submit_ms)} ms`}</dd>
               <dt>Orders processed</dt><dd>{status.total_orders}</dd>
-              <dt>Analyst evals</dt><dd>{status.eval ? `${status.eval.passed} of ${status.eval.scenarios} pass (${status.eval.source})` : "—"}</dd>
             </dl>
             <table style={{ marginTop: 14 }}>
               <caption className="sr-only">Service heartbeats</caption>

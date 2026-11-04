@@ -1,7 +1,16 @@
+from datetime import timedelta
+
 from conftest import make_bars
 
 from arena_workers.common.models import Position
-from arena_workers.strategies.rules import Breakout, Crossover, Index, RubberBand, build_strategy
+from arena_workers.strategies.rules import (
+    Breakout,
+    Crossover,
+    Index,
+    RubberBand,
+    Scorecard,
+    build_strategy,
+)
 
 
 def _signals(closes: list[float], held: Position | None) -> list[str]:
@@ -68,3 +77,32 @@ def test_build_strategy() -> None:
     except ValueError:
         return
     raise AssertionError("expected ValueError")
+
+
+def _scorecard_closes() -> list[float]:
+    """A long slide, then a steady climb with pullbacks so RSI stays under 70."""
+    closes = [150.0 - i for i in range(60)]
+    for i in range(80):
+        closes.append(closes[-1] + (1.0 if i % 3 else -0.8))
+    return closes
+
+
+def test_scorecard_buys_once_when_all_checks_pass() -> None:
+    bars = make_bars(_scorecard_closes())
+    sigs = [s for i in range(1, len(bars) + 1) if (s := Scorecard().on_bar("AAPL", bars[:i], None))]
+    assert sigs and all(s.side == "BUY" and s.bot_slug == "analyst" for s in sigs)
+    assert sigs[0].evidence[0] == {"metric": "SCORE", "value": 3} and "all three checks" in sigs[0].rationale
+    gaps = [b.bar_ts - a.bar_ts for a, b in zip(sigs, sigs[1:], strict=False)]
+    assert all(g > timedelta(minutes=5) for g in gaps)  # fires when the score reaches 3, not on every bar it stays there
+
+
+def test_scorecard_sells_when_checks_fail() -> None:
+    bars = make_bars([float(200 - i) for i in range(80)])
+    sig = Scorecard().on_bar("AAPL", bars, Position("AAPL", 1, 150))
+    assert sig is not None and sig.side == "SELL" and "of 3 checks" in sig.rationale
+    assert Scorecard().on_bar("AAPL", bars, None) is None
+
+
+def test_scorecard_warmup() -> None:
+    assert Scorecard().on_bar("AAPL", make_bars([100.0] * 50), None) is None
+    assert isinstance(build_strategy("scorecard"), Scorecard)

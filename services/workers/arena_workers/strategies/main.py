@@ -8,9 +8,9 @@ import psycopg
 from ..common import db
 from ..common.config import load_settings
 from ..common.submit import post_order, record_signal
-from .rules import build_strategy
+from .rules import LOOKBACK_BARS, build_strategy
 
-RULE_KINDS = ("crossover", "rubber-band", "breakout", "index")
+RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard")
 log = logging.getLogger("strategies")
 
 
@@ -27,7 +27,7 @@ def process_bar(conn: psycopg.Connection[dict[str, Any]], client: httpx.Client, 
     s = load_settings()
     bots = conn.execute("SELECT id, slug, strategy_kind, params FROM bots WHERE strategy_kind = ANY(%s)",
                         (list(RULE_KINDS),)).fetchall()
-    bars = db.load_bars(conn, symbol, "5Min", 120)
+    bars = db.load_bars(conn, symbol, "5Min", LOOKBACK_BARS)
     emitted = 0
     for bot in bots:
         strat = build_strategy(bot["strategy_kind"], bot["params"])

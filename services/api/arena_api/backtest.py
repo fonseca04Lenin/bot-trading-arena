@@ -15,7 +15,7 @@ MAX_SPAN = timedelta(days=731)
 
 
 class BacktestRequest(BaseModel):
-    strategy_slug: Literal["crossover", "rubber-band", "breakout", "index"]
+    strategy_slug: Literal["crossover", "rubber-band", "breakout", "index", "scorecard"]
     symbol: str
     start: datetime
     end: datetime

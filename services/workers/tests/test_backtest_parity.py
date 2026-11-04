@@ -11,7 +11,7 @@ from arena_workers.common.config import load_settings
 from arena_workers.common.models import Bar
 from arena_workers.strategies.backtest import generate_signals, run_backtest
 from arena_workers.strategies.main import process_bar
-from arena_workers.strategies.rules import Breakout, Crossover, RubberBand
+from arena_workers.strategies.rules import Breakout, Crossover, RubberBand, Scorecard
 
 
 def walk(n: int = 400, seed: int = 3) -> list[Bar]:
@@ -24,7 +24,7 @@ def walk(n: int = 400, seed: int = 3) -> list[Bar]:
     return out
 
 
-@pytest.mark.parametrize("strat", [Crossover(), RubberBand(), Breakout()])
+@pytest.mark.parametrize("strat", [Crossover(), RubberBand(), Breakout(), Scorecard()])
 def test_backtest_signals_have_data_and_metrics(strat: Any) -> None:
     res = run_backtest(strat, "AAPL", walk())
     assert len(res.equity) == 400
@@ -37,7 +37,8 @@ def test_live_path_matches_backtest(conn: psycopg.Connection[dict[str, Any]], mo
     db.seed_bots(conn)
     bars = walk()
     expected = generate_signals(Breakout(), "AAPL", bars)
-    assert expected, "fixture should trigger signals"
+    expected_scorecard = generate_signals(Scorecard(), "AAPL", bars)
+    assert expected and expected_scorecard, "fixture should trigger signals"
 
     posted: list[dict[str, Any]] = []
 
@@ -61,3 +62,4 @@ def test_live_path_matches_backtest(conn: psycopg.Connection[dict[str, Any]], mo
         process_bar(conn, client, "AAPL")
     live = [(p["side"]) for p in posted if p["bot_slug"] == "breakout"]
     assert live == [s.side for s in expected]
+    assert [p["side"] for p in posted if p["bot_slug"] == "analyst"] == [s.side for s in expected_scorecard]

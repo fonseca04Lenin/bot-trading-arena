@@ -49,7 +49,7 @@ export default async function BotPage({ params }: { params: Promise<{ slug: stri
           <dt>Trades</dt><dd>{bot.trades}</dd>
           <dt>Broker</dt><dd>{bot.broker === "alpaca_paper" ? "Alpaca paper" : "Simulated"}</dd>
         </dl>
-        {bot.slug === "analyst" && (
+        {bot.prompt_version && (
           <>
             <div className="section-head" style={{ marginTop: 24 }}><h2>Desk Notes</h2></div>
             <dl className="dl">

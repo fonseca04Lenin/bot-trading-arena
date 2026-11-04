@@ -419,7 +419,8 @@
        "crossover",
        "rubber-band",
        "breakout",
-       "index"
+       "index",
+       "scorecard"
       ],
       "title": "Strategy Slug"
      },

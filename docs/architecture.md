@@ -7,7 +7,7 @@
    `NOTIFY bar_closed, '<symbol>|<timestamp>'`. Reconnects use exponential backoff. Without keys it runs a synthetic walk.
 2. **Strategy workers** listen for `bar_closed`, load recent bars and the bot's position, call the pure `on_bar` function of each
    rule bot, store the signal and POST it to the execution service. They skip a signal that would only be refused for the cooldown.
-3. **The Analyst** runs every 30 minutes while the market is open and every 2 hours otherwise, within a daily call budget. See below.
+3. **The Analyst** is a rule bot (`Scorecard`) that runs inside the strategy workers. The LLM version is parked; see below.
 4. **Execution** (Rust) validates, de-duplicates by idempotency key, applies the risk rules, routes to a broker adapter and books the fill.
 5. **Scorer** writes an equity snapshot per bot every 5 minutes and sends `NOTIFY equity_tick`.
 6. **API** serves REST, computes the leaderboard metrics, and relays `NOTIFY` events to WebSocket clients as `trade_filled`,
@@ -25,7 +25,11 @@
 - A fill, the position change and the cash change commit in one transaction; any failure rolls all three back.
 - `/metrics` reports orders by status and p50/p95 signal-to-submit latency.
 
-## The Analyst
+## The parked LLM Analyst
+
+The Analyst currently runs the rule-based `Scorecard` strategy, so the site needs no Anthropic key. The LLM agent described here is
+not deployed, but its code and evals are kept and CI still replays them. To bring it back, set the Analyst's `kind` in `BOT_SEED` to
+`analyst`, run the `arena-analyst` worker, and restore the site copy that describes it.
 
 `run_agent` drives a tool loop over four read-only tools (`get_bars`, `get_portfolio`, `get_indicators`, `get_recent_trades`) and
 ends with a `submit_decisions` call. The model only proposes. `guardrails.review` then:

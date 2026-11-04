@@ -9,8 +9,8 @@ BOT_COPY: dict[str, str] = {
                 "It sells on a close below the lowest low of the previous 10 bars.",
     "index": "Buys the market once and holds. It puts all its cash in SPY on the first open bar and never sells. "
              "It is the benchmark every other bot has to beat.",
-    "analyst": "An AI agent that reads price data through a handful of read-only tools and decides, "
-               "explaining its reasoning. Code checks every call it makes before any order is sent.",
+    "analyst": "Weighs three checks on every bar: the 20-bar average† above the 50-bar one, price above the 20-bar average, "
+               "and a 14-bar RSI† from 50 up to 70. It buys when all three pass and sells when one or none still does.",
 }
 
 GLOSSARY: list[dict[str, str]] = [

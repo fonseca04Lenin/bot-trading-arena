@@ -22,8 +22,8 @@ BOT_SEED: list[dict[str, Any]] = [
      "params": {"entry": 20, "exit": 10}, "silks": {"pattern": "chevron", "colors": ["slate", "paper"]}},
     {"slug": "index", "name": "The Index", "kind": "index", "broker": "sim",
      "params": {"risk_profile": "benchmark"}, "silks": {"pattern": "sash", "colors": ["olive", "paper"]}},
-    {"slug": "analyst", "name": "The Analyst", "kind": "analyst", "broker": "sim",
-     "params": {}, "silks": {"pattern": "diamonds", "colors": ["oxblood", "paper"]}},
+    {"slug": "analyst", "name": "The Analyst", "kind": "scorecard", "broker": "sim",
+     "params": {"fast": 20, "slow": 50, "period": 14, "overbought": 70}, "silks": {"pattern": "diamonds", "colors": ["oxblood", "paper"]}},
 ]
 STARTING_CASH = 100_000
 
@@ -48,11 +48,13 @@ def seed_bots(conn: psycopg.Connection[dict[str, Any]]) -> None:
     for b in BOT_SEED:
         row = conn.execute(
             """INSERT INTO bots (slug, name, strategy_kind, params, silks, starting_cash, broker)
-               VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (slug) DO NOTHING RETURNING id""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (slug) DO UPDATE SET strategy_kind=EXCLUDED.strategy_kind, params=EXCLUDED.params
+               RETURNING id, (xmax = 0) AS inserted""",
             (b["slug"], b["name"], b["kind"], json.dumps(b["params"]), json.dumps(b["silks"]),
              STARTING_CASH, b["broker"]),
         ).fetchone()
-        if row:
+        if row and row["inserted"]:
             conn.execute("INSERT INTO cash (bot_id, amount) VALUES (%s, %s)", (row["id"], STARTING_CASH))
 
 

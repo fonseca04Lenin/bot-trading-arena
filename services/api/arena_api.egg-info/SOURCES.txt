@@ -12,3 +12,4 @@ arena_api.egg-info/SOURCES.txt
 arena_api.egg-info/dependency_links.txt
 arena_api.egg-info/requires.txt
 arena_api.egg-info/top_level.txt
+tests/test_routes.py

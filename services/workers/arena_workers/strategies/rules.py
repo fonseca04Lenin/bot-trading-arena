@@ -1,4 +1,4 @@
-"""The four rule bots. Pure: bars and position in, optional signal out."""
+"""The five rule bots. Pure: bars and position in, optional signal out."""
 
 from collections.abc import Sequence
 
@@ -7,6 +7,7 @@ from ..common.models import Bar, Position, Signal
 from ..common.universe import BENCHMARK_SYMBOL
 
 BUY_PCT = 0.10
+LOOKBACK_BARS = 120  # bars the live worker loads for each decision
 
 
 def _px(x: float) -> str:
@@ -128,7 +129,54 @@ class Index:
         return Signal(self.slug, symbol, "BUY", 1.0, why, bars[-1].ts, [])
 
 
-def build_strategy(kind: str, params: dict[str, float] | None = None) -> Crossover | RubberBand | Breakout | Index:
+class Scorecard:
+    """The Analyst's rule set: buys when trend, price and momentum all agree, sells when at most one still does."""
+
+    slug = "analyst"
+
+    def __init__(self, fast: int = 20, slow: int = 50, period: int = 14, overbought: float = 70.0) -> None:
+        self.fast, self.slow, self.period, self.overbought = fast, slow, period, overbought
+
+    def _score(self, closes: Sequence[float]) -> tuple[int, float, float, float] | None:
+        f, s, r = sma(closes, self.fast), sma(closes, self.slow), rsi(closes, self.period)
+        if f is None or s is None or r is None:
+            return None
+        return sum((f > s, closes[-1] > f, 50.0 <= r < self.overbought)), f, s, r
+
+    def on_bar(
+        self, symbol: str, bars: Sequence[Bar], position: Position | None
+    ) -> Signal | None:
+        # RSI depends on how much history it sees, so cap it to what the live worker loads.
+        closes = [b.c for b in bars[-LOOKBACK_BARS:]]
+        now, prev = self._score(closes), self._score(closes[:-1])
+        if now is None or prev is None:
+            return None
+        score, f, s, r = now
+        px, ts = closes[-1], bars[-1].ts
+        ev: list[dict[str, float | str]] = [
+            {"metric": "SCORE", "value": score},
+            {"metric": f"SMA{self.fast}", "value": round(f, 2)},
+            {"metric": f"SMA{self.slow}", "value": round(s, 2)},
+            {"metric": f"RSI{self.period}", "value": round(r, 1)},
+        ]
+        if score == 3 and prev[0] < 3 and position is None:
+            why = (
+                f"Bought {symbol} at ${_px(px)}: all three checks passed. The {self.fast}-bar average (${_px(f)}) "
+                f"is above the {self.slow}-bar average (${_px(s)}), price is above both, and RSI is {r:.1f}."
+            )
+            return Signal(self.slug, symbol, "BUY", BUY_PCT, why, ts, ev)
+        if score <= 1 and position is not None:
+            why = (
+                f"Sold {symbol} at ${_px(px)}: only {score} of 3 checks still passed, with the {self.fast}-bar "
+                f"average at ${_px(f)}, the {self.slow}-bar average at ${_px(s)} and RSI at {r:.1f}."
+            )
+            return Signal(self.slug, symbol, "SELL", 0.0, why, ts, ev)
+        return None
+
+
+def build_strategy(
+    kind: str, params: dict[str, float] | None = None
+) -> Crossover | RubberBand | Breakout | Index | Scorecard:
     p = params or {}
     if kind == "crossover":
         return Crossover(int(p.get("fast", 20)), int(p.get("slow", 50)))
@@ -138,4 +186,7 @@ def build_strategy(kind: str, params: dict[str, float] | None = None) -> Crossov
         return Breakout(int(p.get("entry", 20)), int(p.get("exit", 10)))
     if kind == "index":
         return Index()
+    if kind == "scorecard":
+        return Scorecard(int(p.get("fast", 20)), int(p.get("slow", 50)), int(p.get("period", 14)),
+                         p.get("overbought", 70.0))
     raise ValueError(f"unknown strategy kind: {kind}")

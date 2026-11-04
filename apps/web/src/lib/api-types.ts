@@ -201,7 +201,7 @@ export interface components {
              * Strategy Slug
              * @enum {string}
              */
-            strategy_slug: "crossover" | "rubber-band" | "breakout" | "index";
+            strategy_slug: "crossover" | "rubber-band" | "breakout" | "index" | "scorecard";
             /** Symbol */
             symbol: string;
             /**

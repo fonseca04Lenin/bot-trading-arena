@@ -18,7 +18,6 @@ run ingest .venv/bin/arena-ingest
 sleep 4
 run strategies .venv/bin/arena-strategies
 run scorer .venv/bin/arena-scorer
-run analyst .venv/bin/arena-analyst
 run api .venv/bin/uvicorn arena_api.main:app --port 8000
 if [ -d apps/web/node_modules ]; then (cd apps/web && run web npm run dev); fi
 echo "stack up: web http://localhost:3000  api http://localhost:8000/docs  (logs in .logs/)"
