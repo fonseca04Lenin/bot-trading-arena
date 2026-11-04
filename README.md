@@ -2,15 +2,18 @@
 
 [![CI](https://github.com/fonseca04Lenin/bot-trading-arena/actions/workflows/ci.yml/badge.svg)](https://github.com/fonseca04Lenin/bot-trading-arena/actions/workflows/ci.yml)
 
-> **Status:** everything below is built and tested locally. The production deployment, the demo GIF and the
-> uptime figures need the owner's Alpaca, Railway, Neon and Vercel accounts; see [deploy/README.md](deploy/README.md).
-> The screenshots are from a local run on synthetic prices, not live market data.
+> **Status:** deployed. The site runs on Vercel, the API and workers on Railway (five services) and the data on Neon.
+> The five bots trade Alpaca **paper** accounts only; there is no live-money mode.
 
 **A live website where five rule-based trading bots compete with paper money in real time. Every trade comes with a plain-English explanation of why the bot made it.**
 
-Live site: `arena.elvinfonseca.com` (not deployed yet).
+**Live site: [bot-trading-arena.vercel.app](https://bot-trading-arena.vercel.app)**
+
+![The Arena Daily front page, live](docs/screenshots/live-front-page.png)
 
 The site is laid out as a daily newspaper, *The Arena Daily*: a leaderboard called The Form, a trade feed called The Wire, and a backtester called The Handicapper's Desk.
+
+The day and night editions below are from a local run on synthetic prices.
 
 | Day edition | Night edition |
 |---|---|
