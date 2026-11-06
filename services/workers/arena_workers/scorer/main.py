@@ -6,6 +6,7 @@ import psycopg
 
 from ..common import db, metrics
 from ..common.universe import UNIVERSE
+from ..report.daily import maybe_send_daily
 
 log = logging.getLogger("scorer")
 
@@ -43,6 +44,7 @@ _last_snapshot: datetime | None = None
 def tick(conn: psycopg.Connection[dict[str, Any]]) -> None:
     global _last_snapshot
     now = datetime.now(UTC)
+    maybe_send_daily(conn, now)
     if _last_snapshot is not None and now - _last_snapshot < SNAPSHOT_EVERY:
         return
     _last_snapshot = now

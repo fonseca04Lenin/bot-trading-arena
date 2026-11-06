@@ -12,6 +12,7 @@ dependencies = [
   "websockets>=13",
   "pydantic>=2.8",
   "anthropic>=0.40",
+  "fpdf2>=2.8",
 ]
 
 [project.optional-dependencies]
