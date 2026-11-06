@@ -16,12 +16,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function BotPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  let bot: BotDetail, trades: { items: Trade[] }, eq: { points: EquityPoint[] };
+  let bot: BotDetail, trades: { items: Trade[] }, eq: { points: EquityPoint[] }, field: unknown[];
   try {
-    [bot, trades, eq] = await Promise.all([
+    [bot, trades, eq, field] = await Promise.all([
       get<BotDetail>(`/api/bots/${slug}`),
       get<{ items: Trade[] }>(`/api/trades?bot=${slug}&limit=20`),
       get<{ points: EquityPoint[] }>(`/api/bots/${slug}/equity?range=ALL`),
+      get<unknown[]>("/api/bots"),
     ]);
   } catch (e) {
     if (e instanceof ApiError && e.message.endsWith("404.")) notFound();
@@ -32,7 +33,7 @@ export default async function BotPage({ params }: { params: Promise<{ slug: stri
   return (
     <div className="front">
       <section className="col c-8">
-        <p className="kicker">Form Guide &middot; rank {bot.rank} of 5</p>
+        <p className="kicker">Form Guide &middot; rank {bot.rank} of {field.length}</p>
         <h1 className="headline" style={{ display: "flex", gap: 16, alignItems: "center" }}><Silks silks={bot.silks} size={48} title={`${bot.name} silks`} />{bot.name}</h1>
         <p className="prose">{bot.description}</p>
         <BotChart bot={bot} trades={trades.items} initial={eq.points} />

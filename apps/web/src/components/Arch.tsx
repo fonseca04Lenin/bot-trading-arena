@@ -4,7 +4,7 @@ const BOXES: Box[] = [
   { x: 10, y: 20, w: 150, label: "Alpaca data", sub: "stocks + crypto" },
   { x: 200, y: 20, w: 150, label: "Ingest", sub: "Python, 5-min bars" },
   { x: 200, y: 130, w: 150, label: "Postgres", sub: "bars, orders, fills" },
-  { x: 390, y: 20, w: 170, label: "Strategy workers", sub: "5 rule bots" },
+  { x: 390, y: 20, w: 170, label: "Strategy workers", sub: "7 rule bots" },
   { x: 600, y: 55, w: 160, label: "Execution", sub: "Rust, Axum" },
   { x: 600, y: 160, w: 160, label: "Alpaca paper", sub: "Crossover only" },
   { x: 390, y: 200, w: 170, label: "Scorer", sub: "equity, metrics" },
