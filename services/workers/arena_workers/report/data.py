@@ -77,7 +77,7 @@ def build_report(conn: psycopg.Connection[dict[str, Any]], day: date) -> Report:
         end_eq = equity_before(end) or cash0
         prev_eq = equity_before(start) or cash0
         mine = [t for t in trades if t["slug"] == b["slug"]]
-        pos = conn.execute("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty > 0 ORDER BY symbol",
+        pos = conn.execute("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty <> 0 ORDER BY symbol",
                            (b["id"],)).fetchall()
         out.append(BotDay(
             slug=b["slug"], name=b["name"], equity=end_eq, prev_equity=prev_eq, starting_cash=cash0,

@@ -32,7 +32,7 @@ export type Trade = {
   id: string;
   ts: string;
   symbol: string;
-  side: "BUY" | "SELL";
+  side: "BUY" | "SELL" | "SHORT" | "COVER";
   qty: number;
   price: number | null;
   status: "submitted" | "filled" | "rejected" | "canceled";

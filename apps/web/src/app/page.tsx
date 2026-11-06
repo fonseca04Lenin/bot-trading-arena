@@ -27,7 +27,7 @@ export default async function FrontPage() {
           <span className="tape" aria-hidden="true" />
           <h2>What you&rsquo;re looking at</h2>
           <p>
-            Six trading bots compete with $100,000 in paper money each. Prices are live; trades are simulated.
+            Seven trading bots compete with $100,000 in paper money each. Prices are live; trades are simulated.
             Every trade below includes the bot&rsquo;s reason for making it.
           </p>
           <p style={{ margin: 0 }}><a href="/colophon">How it&rsquo;s made</a> &middot; <a href="https://github.com/fonseca04Lenin/bot-trading-arena">GitHub</a></p>

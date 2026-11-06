@@ -6,6 +6,7 @@ export const BOT_INK: Record<string, string> = {
   breakout: "#2b5fc7",
   "rubber-band": "#e8a921",
   quant: "#1f9d9d",
+  orb: "#c2417a",
 };
 
 export const botInk = (slug: string) => BOT_INK[slug] ?? "var(--ink)";

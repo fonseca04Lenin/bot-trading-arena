@@ -12,7 +12,7 @@ from ..common.universe import BENCHMARK_SYMBOL
 from .quant import StatArb
 from .rules import LOOKBACK_BARS, build_strategy
 
-RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard", "stat-arb")
+RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard", "stat-arb", "orb")
 log = logging.getLogger("strategies")
 
 

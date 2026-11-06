@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from ..common.indicators import highest, lowest, rsi, sma
 from ..common.models import Bar, Position, Signal
 from ..common.universe import BENCHMARK_SYMBOL
+from .orb import OpeningRange
 from .quant import StatArb
 
 BUY_PCT = 0.10
@@ -177,7 +178,7 @@ class Scorecard:
 
 def build_strategy(
     kind: str, params: dict[str, float] | None = None
-) -> Crossover | RubberBand | Breakout | Index | Scorecard | StatArb:
+) -> Crossover | RubberBand | Breakout | Index | Scorecard | StatArb | OpeningRange:
     p = params or {}
     if kind == "crossover":
         return Crossover(int(p.get("fast", 20)), int(p.get("slow", 50)))
@@ -193,4 +194,6 @@ def build_strategy(
     if kind == "stat-arb":
         return StatArb(int(p.get("window", 60)), p.get("entry", 1.25), p.get("exit", 0.50),
                        p.get("max_half_life", 30.0), p.get("target_vol", 0.20), p.get("stop_loss", 0.03))
+    if kind == "orb":
+        return OpeningRange(p.get("risk_pct", 0.001), p.get("min_range", 0.0005), p.get("max_range", 0.015))
     raise ValueError(f"unknown strategy kind: {kind}")

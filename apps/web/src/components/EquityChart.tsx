@@ -94,7 +94,7 @@ export function EquityChart({ series, trades = [], height = 340, summary }: {
           if (!s || t.status !== "filled" || !s.points.length) return null;
           const p = s.points[nearestIndex(s.points, t.ts)];
           const cx = x(new Date(p.ts)), cy = y(p.equity);
-          const buy = t.side === "BUY";
+          const buy = t.side === "BUY" || t.side === "COVER";
           const d = buy ? `M${cx} ${cy - 7} L${cx - 5} ${cy + 1} L${cx + 5} ${cy + 1}Z` : `M${cx} ${cy + 7} L${cx - 5} ${cy - 1} L${cx + 5} ${cy - 1}Z`;
           return (
             <g key={t.id} className="mark" tabIndex={0} role="img"

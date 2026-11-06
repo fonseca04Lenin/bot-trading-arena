@@ -20,7 +20,7 @@ def snapshot_equity(conn: psycopg.Connection[dict[str, Any]], now: datetime | No
         cash = conn.execute("SELECT amount FROM cash WHERE bot_id=%s", (bot["id"],)).fetchone()
         if cash is None:
             continue
-        pos = conn.execute("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty > 0",
+        pos = conn.execute("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty <> 0",
                            (bot["id"],)).fetchall()
         held = [(float(p["qty"]), prices.get(p["symbol"], float(p["avg_cost"]))) for p in pos]
         eq = metrics.equity_of(float(cash["amount"]), held)

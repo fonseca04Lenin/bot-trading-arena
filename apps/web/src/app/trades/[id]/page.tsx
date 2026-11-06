@@ -17,7 +17,7 @@ export default async function TradePage({ params }: { params: Promise<{ id: stri
     if (e instanceof ApiError && e.message.endsWith("404.")) notFound();
     return <section className="col"><h1 className="headline">Report unavailable</h1><p className="deck">{e instanceof Error ? e.message : "The wire is down."}</p></section>;
   }
-  const verb = t.side === "BUY" ? "Bought" : "Sold";
+  const verb = { BUY: "Bought", SELL: "Sold", SHORT: "Shorted", COVER: "Covered" }[t.side];
   return (
     <div className="front">
       <section className="col c-8">

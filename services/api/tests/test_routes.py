@@ -24,14 +24,14 @@ def test_front_page_has_all_bots_ranked(client: TestClient) -> None:
     r = client.get("/api/front-page")
     assert r.status_code == 200
     body = r.json()
-    assert [x["rank"] for x in body["leaderboard"]] == [1, 2, 3, 4, 5, 6]
+    assert [x["rank"] for x in body["leaderboard"]] == [1, 2, 3, 4, 5, 6, 7]
     assert len(body["ticker"]) == 10 and body["headline"] and body["deck"]
     assert all(len(v) <= 300 for v in body["equity"].values())
     assert r.headers["cache-control"].startswith("public")
 
 
 def test_bots_and_detail(client: TestClient) -> None:
-    assert len(client.get("/api/bots").json()) == 6
+    assert len(client.get("/api/bots").json()) == 7
     d = client.get("/api/bots/analyst").json()
     assert d["slug"] == "analyst" and "prompt_version" not in d and "budget" not in d
     assert client.get("/api/bots/nobody").status_code == 404

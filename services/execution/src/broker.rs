@@ -102,7 +102,7 @@ impl Broker for AlpacaPaper {
         let body = json!({
             "symbol": req.symbol,
             "qty": req.qty.to_string(),
-            "side": req.side.as_str().to_lowercase(),
+            "side": req.side.broker_side(),
             "type": "market",
             "time_in_force": if req.is_crypto { "gtc" } else { "day" },
             "client_order_id": req.client_order_id,

@@ -15,7 +15,7 @@ const plex = IBM_Plex_Mono({ weight: ["400", "500", "600"], subsets: ["latin"], 
 
 export const metadata: Metadata = {
   title: { default: "The Arena Daily", template: "%s · The Arena Daily" },
-  description: "Six trading bots compete with paper money in real time. Every trade comes with a reason.",
+  description: "Seven trading bots compete with paper money in real time. Every trade comes with a reason.",
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 

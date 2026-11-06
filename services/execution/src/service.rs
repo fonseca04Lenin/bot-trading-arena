@@ -128,6 +128,7 @@ impl Service {
             .ok_or_else(|| ServiceError::BadRequest(format!("unknown bot {}", req.bot_slug)))?;
         let bot_id: i32 = bot.get("id");
         let params: serde_json::Value = bot.get("params");
+        let allow_short = params["allow_short"] == true;
         let profile = if params["risk_profile"] == "benchmark" {
             Profile::Benchmark
         } else {
@@ -153,13 +154,14 @@ impl Service {
         }
         let price = latest_price(&mut tx, &req.symbol).await?;
         let positions = sqlx::query(
-            "SELECT symbol, qty, avg_cost FROM positions WHERE bot_id = $1 AND qty > 0",
+            "SELECT symbol, qty, avg_cost FROM positions WHERE bot_id = $1 AND qty <> 0",
         )
         .bind(bot_id)
         .fetch_all(&mut *tx)
         .await?;
         let mut equity = cash;
         let mut held = Decimal::ZERO;
+        let mut short_exposure = Decimal::ZERO;
         for p in &positions {
             let sym: String = p.get("symbol");
             let qty: Decimal = p.get("qty");
@@ -169,7 +171,10 @@ impl Service {
             let px = latest_price(&mut tx, &sym)
                 .await?
                 .unwrap_or_else(|| p.get("avg_cost"));
-            equity += qty * px;
+            equity += qty * px; // a short has negative qty, so it subtracts its current cost to buy back
+            if qty < Decimal::ZERO {
+                short_exposure += -qty * px;
+            }
         }
         let in_cooldown: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM orders WHERE bot_id=$1 AND symbol=$2 AND status IN ('submitted','filled')
@@ -198,6 +203,8 @@ impl Service {
                 cash,
                 open_positions: positions.len(),
                 held_qty: held,
+                allow_short,
+                short_exposure,
                 target_pct: req.target_pct,
                 price,
                 in_cooldown,
@@ -364,6 +371,56 @@ impl Service {
                     .execute(&mut *tx)
                     .await?;
                 cash + notional
+            }
+            Side::Short => {
+                // The proceeds land in cash; the short is carried as a negative position at its entry price.
+                let existing: Option<Decimal> = sqlx::query_scalar(
+                    "SELECT qty FROM positions WHERE bot_id=$1 AND symbol=$2 FOR UPDATE",
+                )
+                .bind(bot_id)
+                .bind(symbol)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if existing.is_some_and(|q| q != Decimal::ZERO) {
+                    return Err(ServiceError::BadRequest(
+                        "already holding this symbol".into(),
+                    ));
+                }
+                sqlx::query(
+                    "INSERT INTO positions (bot_id, symbol, qty, avg_cost) VALUES ($1,$2,$3,$4)
+                     ON CONFLICT (bot_id, symbol) DO UPDATE SET qty = EXCLUDED.qty, avg_cost = EXCLUDED.avg_cost",
+                )
+                .bind(bot_id)
+                .bind(symbol)
+                .bind(-qty)
+                .bind(price)
+                .execute(&mut *tx)
+                .await?;
+                cash + notional
+            }
+            Side::Cover => {
+                let held: Option<Decimal> = sqlx::query_scalar(
+                    "SELECT qty FROM positions WHERE bot_id=$1 AND symbol=$2 FOR UPDATE",
+                )
+                .bind(bot_id)
+                .bind(symbol)
+                .fetch_optional(&mut *tx)
+                .await?;
+                if held.unwrap_or_default() > -qty {
+                    return Err(ServiceError::BadRequest(
+                        "short position smaller than cover quantity".into(),
+                    ));
+                }
+                if notional > cash {
+                    return Err(ServiceError::BadRequest("insufficient cash at fill".into()));
+                }
+                sqlx::query("DELETE FROM positions WHERE bot_id=$1 AND symbol=$2 AND qty >= -$3")
+                    .bind(bot_id)
+                    .bind(symbol)
+                    .bind(qty)
+                    .execute(&mut *tx)
+                    .await?;
+                cash - notional
             }
         };
         sqlx::query("UPDATE cash SET amount=$2 WHERE bot_id=$1")

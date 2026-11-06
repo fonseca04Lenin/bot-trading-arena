@@ -8,7 +8,7 @@ import { Silks } from "./Silks";
 
 export function WireEntry({ t, fresh }: { t: Trade; fresh?: boolean }) {
   const scratched = t.status === "rejected";
-  const verb = t.side === "BUY" ? "BOUGHT" : "SOLD";
+  const verb = { BUY: "BOUGHT", SELL: "SOLD", SHORT: "SHORTED", COVER: "COVERED" }[t.side];
   return (
     <li className={fresh ? "fresh" : undefined} style={{ "--c": botInk(t.bot_slug) } as React.CSSProperties}>
       <div className="meta">

@@ -18,7 +18,7 @@
 
 - `POST /v1/orders` needs `X-Arena-Key`. The same `idempotency_key` (or `signal_id`) always returns the original order.
 - A per-bot row lock serialises risk checks. Sizing and the rules (10% of equity per buy, five positions, 15-minute cooldown on entries (exits are exempt), no
-  equity orders when the market is closed, long only) live in `risk.rs` as pure functions. The benchmark bot is exempt through
+  equity orders when the market is closed, long only unless a bot's params allow shorts: whole shares, equities only, at most 50% of equity short) live in `risk.rs` as pure functions. The benchmark bot is exempt through
   `risk_profile = "benchmark"` in its params, not by slug.
 - Brokers: `sim` fills at the latest price with 2 bp of slippage; `alpaca_paper` submits a market order to Alpaca's paper API and polls for the fill.
   If no Alpaca keys are configured, `alpaca_paper` bots fall back to the simulator and the order records the broker actually used.

@@ -27,6 +27,9 @@ BOT_SEED: list[dict[str, Any]] = [
     {"slug": "quant", "name": "The Quant", "kind": "stat-arb", "broker": "sim",
      "params": {"window": 60, "entry": 1.25, "exit": 0.5, "max_half_life": 30, "target_vol": 0.2, "stop_loss": 0.03},
      "silks": {"pattern": "sash", "colors": ["slate", "ochre"]}},
+    {"slug": "orb", "name": "The Day Trader", "kind": "orb", "broker": "sim",
+     "params": {"allow_short": True, "risk_pct": 0.001, "min_range": 0.0005, "max_range": 0.015},
+     "silks": {"pattern": "quartered", "colors": ["oxblood", "ochre"]}},
 ]
 STARTING_CASH = 100_000
 
@@ -94,7 +97,7 @@ def load_bars(conn: psycopg.Connection[dict[str, Any]], symbol: str, timeframe: 
 
 
 def load_position(conn: psycopg.Connection[dict[str, Any]], bot_id: int, symbol: str) -> Position | None:
-    r = conn.execute("SELECT qty, avg_cost FROM positions WHERE bot_id=%s AND symbol=%s AND qty > 0",
+    r = conn.execute("SELECT qty, avg_cost FROM positions WHERE bot_id=%s AND symbol=%s AND qty <> 0",
                      (bot_id, symbol)).fetchone()
     return Position(symbol, float(r["qty"]), float(r["avg_cost"])) if r else None
 

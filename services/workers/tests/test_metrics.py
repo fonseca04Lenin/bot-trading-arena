@@ -48,3 +48,17 @@ def test_round_trips_and_win_rate() -> None:
 def test_today_change() -> None:
     assert metrics.today_change(105, 100) == pytest.approx(0.05)
     assert metrics.today_change(105, None) is None
+
+
+def test_short_round_trips_gain_when_bought_back_cheaper() -> None:
+    wins = metrics.closed_round_trips([Fill("SHORT", 10, 100.0), Fill("COVER", 10, 90.0)])
+    assert wins == [100.0]
+    loss = metrics.closed_round_trips([Fill("SHORT", 10, 100.0), Fill("COVER", 10, 110.0)])
+    assert loss == [-100.0]
+
+
+def test_long_and_short_trips_mix_and_partial_covers_are_tracked() -> None:
+    fills = [Fill("BUY", 5, 10.0), Fill("SELL", 5, 12.0),
+             Fill("SHORT", 10, 50.0), Fill("COVER", 4, 45.0), Fill("COVER", 6, 55.0)]
+    assert metrics.closed_round_trips(fills) == [10.0, 20.0, -30.0]
+    assert metrics.closed_round_trips([Fill("COVER", 5, 10.0)]) == []  # nothing to cover

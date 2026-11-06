@@ -15,7 +15,7 @@ export function TradeChart({ trade }: { trade: TradeDetail }) {
   const step = (w - pad.l - pad.r) / bars.length;
   const idx = bars.findIndex((b) => new Date(b.ts).getTime() >= new Date(trade.ts).getTime());
   const at = idx === -1 ? bars.length - 1 : idx;
-  const buy = trade.side === "BUY";
+  const buy = trade.side === "BUY" || trade.side === "COVER";
   const cx = pad.l + step * (at + 0.5);
   const ref = trade.price ?? bars[at].c;
   return (

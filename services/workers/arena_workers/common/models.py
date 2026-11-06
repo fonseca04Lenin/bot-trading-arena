@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
-Side = Literal["BUY", "SELL"]
+Side = Literal["BUY", "SELL", "SHORT", "COVER"]
 
 
 @dataclass(frozen=True, slots=True)

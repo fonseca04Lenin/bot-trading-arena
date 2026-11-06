@@ -10,7 +10,8 @@ from ..common.clock import ET
 from .data import BotDay, Report
 
 INK = {"index": (47, 138, 87), "analyst": (122, 63, 176), "crossover": (226, 85, 45),
-       "breakout": (43, 95, 199), "rubber-band": (232, 169, 33), "quant": (31, 157, 157)}
+       "breakout": (43, 95, 199), "rubber-band": (232, 169, 33), "quant": (31, 157, 157),
+       "orb": (194, 65, 122)}
 
 
 def pct(x: float) -> str:
@@ -199,8 +200,10 @@ def _bot_section(pdf: _Pdf, r: Report, b: BotDay) -> None:
     if not b.positions:
         pdf.cell(0, 5, "None.", new_x="LMARGIN", new_y="NEXT")
     for sym, qty, cost, last in b.positions:
-        gain = last / cost - 1 if cost else 0.0
-        pdf.cell(0, 5, _latin(f"{sym}: {qty:,.4f} @ avg {cost:,.2f}, last {last:,.2f} ({pct(gain)})"),
+        short = qty < 0
+        gain = (cost / last - 1 if last else 0.0) if short else (last / cost - 1 if cost else 0.0)
+        label = f"SHORT {sym}: {abs(qty):,.4f}" if short else f"{sym}: {qty:,.4f}"
+        pdf.cell(0, 5, _latin(f"{label} @ avg {cost:,.2f}, last {last:,.2f} ({pct(gain)})"),
                  new_x="LMARGIN", new_y="NEXT")
 
 

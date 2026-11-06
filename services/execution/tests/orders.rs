@@ -588,3 +588,117 @@ async fn an_order_finishes_even_if_the_caller_hangs_up() {
     assert_eq!(status, "filled");
     assert!(cash(&e.pool, "alp").await < dec!(100000));
 }
+
+async fn add_day_trader(pool: &PgPool) {
+    sqlx::query(
+        "INSERT INTO bots (slug,name,strategy_kind,params,starting_cash,broker)
+         VALUES ('orb','O','orb','{\"allow_short\": true}',100000,'sim')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO cash SELECT id, 100000 FROM bots WHERE slug='orb'")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+async fn position_qty(pool: &PgPool, bot: &str, symbol: &str) -> Option<Decimal> {
+    sqlx::query_scalar(
+        "SELECT qty FROM positions p JOIN bots b ON b.id=p.bot_id WHERE b.slug=$1 AND p.symbol=$2",
+    )
+    .bind(bot)
+    .bind(symbol)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn a_short_opens_a_negative_position_and_cover_closes_it() {
+    let e = setup().await;
+    add_day_trader(&e.pool).await;
+    let s1 = signal(&e.pool, "orb", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s1, "orb", "AAPL", "SHORT", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "filled");
+    assert_eq!(o.side, "SHORT");
+    assert_eq!(o.qty, dec!(100)); // whole shares
+    assert_eq!(o.fill_price, Some(dec!(99.98))); // sold 2 bps below the price
+    assert_eq!(position_qty(&e.pool, "orb", "AAPL").await, Some(dec!(-100)));
+    assert_eq!(cash(&e.pool, "orb").await, dec!(109998)); // proceeds credited
+                                                          // Equity: cash plus the (negative) position at the market price of 100.
+    assert_eq!(
+        cash(&e.pool, "orb").await + dec!(-100) * dec!(100),
+        dec!(99998)
+    );
+
+    // Covering straight away is an exit, so the cooldown does not apply.
+    let s2 = signal(&e.pool, "orb", "AAPL").await;
+    let c = e
+        .svc
+        .place(order(s2, "orb", "AAPL", "COVER", Decimal::ZERO))
+        .await
+        .unwrap();
+    assert_eq!(c.status, "filled");
+    assert_eq!(c.qty, dec!(100));
+    assert_eq!(c.fill_price, Some(dec!(100.02))); // bought back 2 bps above
+    assert_eq!(position_qty(&e.pool, "orb", "AAPL").await, None);
+    assert_eq!(cash(&e.pool, "orb").await, dec!(99996)); // lost 0.04 a share on slippage
+}
+
+#[tokio::test]
+async fn only_bots_that_opt_in_may_sell_short() {
+    let e = setup().await;
+    let s = signal(&e.pool, "crossover", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "AAPL", "SHORT", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "rejected");
+    assert_eq!(o.reject_reason.unwrap(), "this bot may not sell short");
+    assert_eq!(cash(&e.pool, "crossover").await, dec!(100000));
+}
+
+#[tokio::test]
+async fn a_short_blocks_buying_or_selling_the_same_symbol() {
+    let e = setup().await;
+    add_day_trader(&e.pool).await;
+    let s1 = signal(&e.pool, "orb", "AAPL").await;
+    e.svc
+        .place(order(s1, "orb", "AAPL", "SHORT", dec!(0.10)))
+        .await
+        .unwrap();
+    let s2 = signal(&e.pool, "orb", "AAPL").await;
+    let sell = e
+        .svc
+        .place(order(s2, "orb", "AAPL", "SELL", Decimal::ZERO))
+        .await
+        .unwrap();
+    assert_eq!(sell.reject_reason.unwrap(), "no position to sell");
+    let s3 = signal(&e.pool, "orb", "AAPL").await;
+    let buy = e
+        .svc
+        .place(order(s3, "orb", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert!(buy.status == "rejected");
+    assert_eq!(position_qty(&e.pool, "orb", "AAPL").await, Some(dec!(-100)));
+}
+
+#[tokio::test]
+async fn covering_with_no_short_is_refused() {
+    let e = setup().await;
+    add_day_trader(&e.pool).await;
+    let s = signal(&e.pool, "orb", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s, "orb", "AAPL", "COVER", Decimal::ZERO))
+        .await
+        .unwrap();
+    assert_eq!(o.reject_reason.unwrap(), "no short position to cover");
+}

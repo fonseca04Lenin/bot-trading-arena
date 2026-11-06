@@ -24,7 +24,7 @@ export function TheForm({ bots }: { bots: Bot[] }) {
     <>
       <div className="table-wrap">
         <table className="form-table">
-          <caption className="sr-only">The Form: six bots ranked by return since launch</caption>
+          <caption className="sr-only">The Form: seven bots ranked by return since launch</caption>
           <thead>
             <tr>
               <th scope="col">#</th><th scope="col"><span className="sr-only">Silks</span></th><th scope="col">Bot</th>

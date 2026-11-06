@@ -142,7 +142,7 @@ async def bot_detail(slug: str, response: Response) -> dict[str, Any]:
     bot = await db.fetchone("SELECT * FROM bots WHERE slug=%s", slug)
     if not bot:
         raise HTTPException(404, "No such bot.")
-    pos = await db.fetch("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty > 0 ORDER BY symbol", bot["id"])
+    pos = await db.fetch("SELECT symbol, qty, avg_cost FROM positions WHERE bot_id=%s AND qty <> 0 ORDER BY symbol", bot["id"])
     positions = []
     for p in pos:
         px = await db.fetchone("SELECT c FROM bars WHERE symbol=%s AND timeframe IN ('1Min','5Min') ORDER BY ts DESC LIMIT 1", p["symbol"])
