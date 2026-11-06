@@ -49,7 +49,13 @@ async fn post_order(
     State(st): State<AppState>,
     Json(body): Json<NewOrder>,
 ) -> Result<Response, ServiceError> {
-    Ok(Json(st.svc.place(body).await?).into_response())
+    // Run the order on its own task. When the caller's timeout fires and it hangs up, axum drops this handler;
+    // without the spawn that would cancel the order halfway through the broker call and strand the fill.
+    let svc = st.svc.clone();
+    let rec = tokio::spawn(async move { svc.place(body).await })
+        .await
+        .map_err(|e| ServiceError::Internal(format!("order task failed: {e}")))??;
+    Ok(Json(rec).into_response())
 }
 
 async fn get_order(

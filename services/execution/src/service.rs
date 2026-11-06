@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
-use crate::broker::{Broker, OrderRequest};
+use crate::broker::{Broker, BrokerLookup, OrderRequest, StillPending};
 use crate::risk::{self, Inputs, Profile, Side, COOLDOWN_MINUTES};
 
 #[derive(Debug, Deserialize)]
@@ -241,8 +241,10 @@ impl Service {
         tx.commit().await?;
 
         if let Ok((qty, ref_price)) = decision {
+            let client_order_id = order_id.to_string();
             let outcome = broker
                 .execute(&OrderRequest {
+                    client_order_id: &client_order_id,
                     symbol: &req.symbol,
                     side,
                     qty,
@@ -263,10 +265,18 @@ impl Service {
                     })
                     .await
                 }
+                // The broker may still fill this order. Leave it `submitted`; reconcile_stale settles it.
+                Err(e) if e.downcast_ref::<StillPending>().is_some() => {
+                    tracing::warn!(%order_id, "{e}; left submitted for reconciliation");
+                    return self
+                        .get_order(order_id)
+                        .await?
+                        .ok_or_else(|| ServiceError::Internal("order vanished".into()));
+                }
                 Err(e) => Err(ServiceError::Internal(e.to_string())),
             };
             if let Err(ServiceError::Internal(msg) | ServiceError::BadRequest(msg)) = applied {
-                sqlx::query("UPDATE orders SET status='rejected', reject_reason=$2, updated_at=now() WHERE id=$1")
+                sqlx::query("UPDATE orders SET status='rejected', reject_reason=$2, updated_at=now() WHERE id=$1 AND status='submitted'")
                     .bind(order_id)
                     .bind(format!("broker: {msg}"))
                     .execute(&self.pool)
@@ -290,6 +300,17 @@ impl Service {
             broker_order_id,
         } = f;
         let mut tx = self.pool.begin().await?;
+        // Book a fill once: the request handler and the reconciler can both try for the same order.
+        let status: Option<String> =
+            sqlx::query_scalar("SELECT status FROM orders WHERE id=$1 FOR UPDATE")
+                .bind(order_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if status.as_deref() != Some("submitted") {
+            return Err(ServiceError::BadRequest(
+                "order is not awaiting a fill".into(),
+            ));
+        }
         let cash: Decimal =
             sqlx::query_scalar("SELECT amount FROM cash WHERE bot_id=$1 FOR UPDATE")
                 .bind(bot_id)
@@ -359,6 +380,75 @@ impl Service {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Settle Alpaca orders whose outcome was lost (a timeout, a crash, a dropped connection) by asking Alpaca
+    /// what happened to each one. Returns how many it settled.
+    pub async fn reconcile_stale(&self) -> Result<usize, ServiceError> {
+        let Some(alpaca) = &self.alpaca else {
+            return Ok(0);
+        };
+        let rows = sqlx::query(
+            "SELECT id, bot_id, symbol, side, qty FROM orders
+             WHERE status = 'submitted' AND broker = 'alpaca_paper'
+               AND submitted_at < now() - interval '5 minutes' ORDER BY submitted_at",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut settled = 0;
+        for r in rows {
+            let id: Uuid = r.get("id");
+            let symbol: String = r.get("symbol");
+            let outcome = match alpaca.lookup(&id.to_string()).await {
+                Ok(o) => o,
+                Err(e) => {
+                    tracing::warn!(%id, "reconcile lookup failed: {e}");
+                    continue;
+                }
+            };
+            match outcome {
+                BrokerLookup::Filled(fill) => {
+                    let Some(side) = Side::parse(&r.get::<String, _>("side")) else {
+                        continue;
+                    };
+                    let applied = self
+                        .apply_fill(FillRequest {
+                            order_id: id,
+                            bot_id: r.get("bot_id"),
+                            symbol: &symbol,
+                            side,
+                            qty: r.get("qty"),
+                            price: fill.price,
+                            broker_order_id: fill.broker_order_id,
+                        })
+                        .await;
+                    match applied {
+                        Ok(()) => {
+                            tracing::info!(%id, %symbol, "reconciled a lost fill");
+                            settled += 1;
+                        }
+                        // Filled at the broker but cannot be booked. Leave it visible rather than hide it.
+                        Err(e) => {
+                            tracing::error!(%id, %symbol, "filled at broker, cannot book: {e:?}")
+                        }
+                    }
+                }
+                BrokerLookup::Dead(why) => {
+                    sqlx::query(
+                        "UPDATE orders SET status='rejected', reject_reason=$2, updated_at=now()
+                         WHERE id=$1 AND status='submitted'",
+                    )
+                    .bind(id)
+                    .bind(format!("broker: {why}"))
+                    .execute(&self.pool)
+                    .await?;
+                    tracing::info!(%id, %symbol, "reconciled a dead order: {why}");
+                    settled += 1;
+                }
+                BrokerLookup::Pending | BrokerLookup::Unsupported => {}
+            }
+        }
+        Ok(settled)
     }
 
     pub async fn metrics_text(&self) -> Result<String, ServiceError> {

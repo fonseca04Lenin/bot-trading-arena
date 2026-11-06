@@ -3,10 +3,11 @@
 use std::sync::Arc;
 
 use arena_execution::{
-    broker::SimBroker,
+    broker::{Broker, BrokerFill, BrokerLookup, OrderRequest, SimBroker, StillPending},
     http::{router, AppState},
     service::{FillRequest, NewOrder, Service},
 };
+use async_trait::async_trait;
 use axum::{body::Body, http::Request};
 use http_body_util::BodyExt;
 use rust_decimal::Decimal;
@@ -266,6 +267,11 @@ async fn failed_fill_leaves_no_partial_writes() {
         .fetch_one(&e.pool)
         .await
         .unwrap();
+    sqlx::query("UPDATE orders SET status='submitted' WHERE id=$1")
+        .bind(o.id)
+        .execute(&e.pool)
+        .await
+        .unwrap();
     // A fill larger than available cash must fail and roll back the fill row, position and cash.
     let res = e
         .svc
@@ -364,4 +370,221 @@ async fn metrics_report_orders_and_latency() {
     let text = e.svc.metrics_text().await.unwrap();
     assert!(text.contains("arena_orders_total{status=\"filled\"} 1"));
     assert!(text.contains("quantile=\"0.95\""));
+}
+
+#[derive(Clone, Copy)]
+enum Look {
+    Filled,
+    Dead,
+    Pending,
+}
+
+/// A stand-in for Alpaca: `pending` makes execute lose the outcome, `look` is what a later lookup finds.
+struct Fake {
+    delay_ms: u64,
+    pending: bool,
+    look: Look,
+}
+
+fn fake_fill() -> BrokerFill {
+    BrokerFill {
+        price: dec!(100),
+        broker_order_id: Some("fake-1".into()),
+    }
+}
+
+#[async_trait]
+impl Broker for Fake {
+    fn name(&self) -> &'static str {
+        "alpaca_paper"
+    }
+    async fn execute(&self, _req: &OrderRequest<'_>) -> anyhow::Result<BrokerFill> {
+        tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+        if self.pending {
+            return Err(StillPending("connection lost".into()).into());
+        }
+        Ok(fake_fill())
+    }
+    async fn lookup(&self, _id: &str) -> anyhow::Result<BrokerLookup> {
+        Ok(match self.look {
+            Look::Filled => BrokerLookup::Filled(fake_fill()),
+            Look::Dead => BrokerLookup::Dead("order not found at broker".into()),
+            Look::Pending => BrokerLookup::Pending,
+        })
+    }
+}
+
+async fn alpaca_svc(e: &Env, fake: Fake) -> Arc<Service> {
+    sqlx::query(
+        "INSERT INTO bots (slug,name,strategy_kind,params,starting_cash,broker)
+         VALUES ('alp','A','crossover','{}',100000,'alpaca_paper')",
+    )
+    .execute(&e.pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO cash SELECT id, 100000 FROM bots WHERE slug='alp'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    Arc::new(Service {
+        pool: e.pool.clone(),
+        sim: Arc::new(SimBroker),
+        alpaca: Some(Arc::new(fake)),
+        force_market_open: true,
+    })
+}
+
+async fn age_orders(pool: &PgPool, minutes: i32) {
+    sqlx::query("UPDATE orders SET submitted_at = now() - make_interval(mins => $1)")
+        .bind(minutes)
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_lost_broker_outcome_stays_submitted_not_rejected() {
+    let e = setup().await;
+    let svc = alpaca_svc(
+        &e,
+        Fake {
+            delay_ms: 0,
+            pending: true,
+            look: Look::Filled,
+        },
+    )
+    .await;
+    let s = signal(&e.pool, "alp", "AAPL").await;
+    let o = svc
+        .place(order(s, "alp", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "submitted");
+    assert!(o.reject_reason.is_none());
+    assert_eq!(cash(&e.pool, "alp").await, dec!(100000));
+}
+
+#[tokio::test]
+async fn reconcile_books_a_lost_fill_exactly_once() {
+    let e = setup().await;
+    let svc = alpaca_svc(
+        &e,
+        Fake {
+            delay_ms: 0,
+            pending: true,
+            look: Look::Filled,
+        },
+    )
+    .await;
+    let s = signal(&e.pool, "alp", "AAPL").await;
+    let o = svc
+        .place(order(s, "alp", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(
+        svc.reconcile_stale().await.unwrap(),
+        0,
+        "too recent to touch"
+    );
+    age_orders(&e.pool, 10).await;
+    assert_eq!(svc.reconcile_stale().await.unwrap(), 1);
+    let done = svc.get_order(o.id).await.unwrap().unwrap();
+    assert_eq!(done.status, "filled");
+    assert_eq!(done.fill_price, Some(dec!(100)));
+    let after = cash(&e.pool, "alp").await;
+    assert_eq!(after, dec!(100000) - done.qty * dec!(100));
+    assert_eq!(svc.reconcile_stale().await.unwrap(), 0);
+    assert_eq!(cash(&e.pool, "alp").await, after, "no double booking");
+    let fills: i64 = sqlx::query_scalar("SELECT count(*) FROM fills")
+        .fetch_one(&e.pool)
+        .await
+        .unwrap();
+    assert_eq!(fills, 1);
+}
+
+#[tokio::test]
+async fn reconcile_rejects_an_order_the_broker_never_had() {
+    let e = setup().await;
+    let svc = alpaca_svc(
+        &e,
+        Fake {
+            delay_ms: 0,
+            pending: true,
+            look: Look::Dead,
+        },
+    )
+    .await;
+    let s = signal(&e.pool, "alp", "AAPL").await;
+    let o = svc
+        .place(order(s, "alp", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    age_orders(&e.pool, 10).await;
+    assert_eq!(svc.reconcile_stale().await.unwrap(), 1);
+    let done = svc.get_order(o.id).await.unwrap().unwrap();
+    assert_eq!(done.status, "rejected");
+    assert!(done.reject_reason.unwrap().contains("not found at broker"));
+    assert_eq!(cash(&e.pool, "alp").await, dec!(100000));
+}
+
+#[tokio::test]
+async fn reconcile_leaves_a_still_open_order_alone() {
+    let e = setup().await;
+    let svc = alpaca_svc(
+        &e,
+        Fake {
+            delay_ms: 0,
+            pending: true,
+            look: Look::Pending,
+        },
+    )
+    .await;
+    let s = signal(&e.pool, "alp", "AAPL").await;
+    let o = svc
+        .place(order(s, "alp", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    age_orders(&e.pool, 10).await;
+    assert_eq!(svc.reconcile_stale().await.unwrap(), 0);
+    assert_eq!(svc.get_order(o.id).await.unwrap().unwrap().status, o.status);
+}
+
+#[tokio::test]
+async fn an_order_finishes_even_if_the_caller_hangs_up() {
+    let e = setup().await;
+    let svc = alpaca_svc(
+        &e,
+        Fake {
+            delay_ms: 600,
+            pending: false,
+            look: Look::Filled,
+        },
+    )
+    .await;
+    let s = signal(&e.pool, "alp", "AAPL").await;
+    let body = serde_json::json!({
+        "signal_id": s, "bot_slug": "alp", "symbol": "AAPL", "side": "BUY",
+        "target_pct": "0.10", "idempotency_key": format!("sig-{s}")
+    });
+    let app = router(AppState {
+        svc,
+        arena_key: Arc::new("k".into()),
+    });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/v1/orders")
+        .header("x-arena-key", "k")
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let call = tokio::spawn(async move { app.oneshot(req).await });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    call.abort(); // the strategies worker's timeout: it hangs up mid-order
+    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+    let status: String = sqlx::query_scalar("SELECT status FROM orders")
+        .fetch_one(&e.pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "filled");
+    assert!(cash(&e.pool, "alp").await < dec!(100000));
 }

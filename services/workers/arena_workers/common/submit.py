@@ -27,7 +27,7 @@ def post_order(client: httpx.Client, s: Settings, signal_id: uuid.UUID, sig: Sig
         headers={"X-Arena-Key": s.arena_key},
         json={"signal_id": str(signal_id), "bot_slug": sig.bot_slug, "symbol": sig.symbol, "side": sig.side,
               "target_pct": str(sig.target_pct), "idempotency_key": f"sig-{signal_id}"},
-        timeout=20,
+        timeout=45,  # above the execution service's own 20s wait for a broker fill
     )
     r.raise_for_status()
     body: dict[str, Any] = r.json()

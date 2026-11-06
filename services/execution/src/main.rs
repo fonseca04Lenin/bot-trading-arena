@@ -56,6 +56,16 @@ async fn main() {
         }
     });
 
+    let sweeper = svc.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            if let Err(e) = sweeper.reconcile_stale().await {
+                tracing::warn!("reconcile failed: {e:?}");
+            }
+        }
+    });
+
     let app = router(AppState {
         svc,
         arena_key: Arc::new(cfg.arena_key.clone()),
