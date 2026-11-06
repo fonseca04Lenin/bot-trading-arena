@@ -151,7 +151,25 @@ async fn buy_fills_with_slippage_and_updates_cash_and_position() {
 }
 
 #[tokio::test]
-async fn cooldown_rejects_second_order_and_records_reason() {
+async fn cooldown_rejects_a_second_buy_and_records_reason() {
+    let e = setup().await;
+    let s1 = signal(&e.pool, "crossover", "AAPL").await;
+    e.svc
+        .place(order(s1, "crossover", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    let s2 = signal(&e.pool, "crossover", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s2, "crossover", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "rejected");
+    assert!(o.reject_reason.unwrap().starts_with("cooldown"));
+}
+
+#[tokio::test]
+async fn a_sell_right_after_a_buy_is_not_held_up_by_the_cooldown() {
     let e = setup().await;
     let s1 = signal(&e.pool, "crossover", "AAPL").await;
     e.svc
@@ -164,8 +182,7 @@ async fn cooldown_rejects_second_order_and_records_reason() {
         .place(order(s2, "crossover", "AAPL", "SELL", Decimal::ZERO))
         .await
         .unwrap();
-    assert_eq!(o.status, "rejected");
-    assert!(o.reject_reason.unwrap().starts_with("cooldown"));
+    assert_eq!(o.status, "filled");
 }
 
 #[tokio::test]

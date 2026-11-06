@@ -69,7 +69,8 @@ pub fn size_order(i: &Inputs) -> Result<Decimal, String> {
         return Err("no price available".into());
     }
     let benchmark = i.profile == Profile::Benchmark;
-    if !benchmark && i.in_cooldown {
+    // The cooldown stops rapid-fire entries. Exits never wait, so a stop-loss or a quick reversion is not delayed.
+    if !benchmark && i.in_cooldown && i.side == Side::Buy {
         return Err(format!(
             "cooldown: one order per symbol per {COOLDOWN_MINUTES} minutes"
         ));
@@ -171,6 +172,15 @@ mod tests {
         assert!(size_order(&i).unwrap_err().starts_with("position limit"));
         i.open_positions = 4;
         assert!(size_order(&i).is_ok());
+    }
+
+    #[test]
+    fn sells_ignore_the_cooldown() {
+        let mut i = base();
+        i.side = Side::Sell;
+        i.held_qty = dec!(5);
+        i.in_cooldown = true;
+        assert_eq!(size_order(&i).unwrap(), dec!(5));
     }
 
     #[test]
