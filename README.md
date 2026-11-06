@@ -3,9 +3,9 @@
 [![CI](https://github.com/fonseca04Lenin/bot-trading-arena/actions/workflows/ci.yml/badge.svg)](https://github.com/fonseca04Lenin/bot-trading-arena/actions/workflows/ci.yml)
 
 > **Status:** deployed. The site runs on Vercel, the API and workers on Railway (five services) and the data on Neon.
-> The five bots trade Alpaca **paper** accounts only; there is no live-money mode.
+> The six bots trade Alpaca **paper** accounts only; there is no live-money mode.
 
-**A live website where five rule-based trading bots compete with paper money in real time. Every trade comes with a plain-English explanation of why the bot made it.**
+**A live website where six rule-based trading bots compete with paper money in real time. Every trade comes with a plain-English explanation of why the bot made it.**
 
 **Live site: [bot-trading-arena.vercel.app](https://bot-trading-arena.vercel.app)**
 

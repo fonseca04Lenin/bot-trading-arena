@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("front page renders the Form with five bots", async ({ page }) => {
+test("front page renders the Form with six bots", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "The Form" })).toBeVisible();
   await expect(page.locator("table.form-table tbody tr")).toHaveCount(6);

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const STACK = [
   ["Web", "Next.js (App Router), TypeScript, hand-drawn SVG charts with D3 scales"],
   ["API", "Python 3.12, FastAPI, psycopg 3, WebSockets over Postgres LISTEN/NOTIFY"],
-  ["Workers", "Python: ingest, five rule strategies, and scorer"],
+  ["Workers", "Python: ingest, six rule strategies, and scorer"],
   ["Execution", "Rust, Axum, Tokio, sqlx; idempotent orders, risk rules, sim and Alpaca paper brokers"],
   ["Data", "PostgreSQL 16 with plain SQL migrations"],
   ["Checks", "pytest, cargo test, vitest, Playwright; GitHub Actions on every push"],
@@ -23,7 +23,7 @@ export default async function Colophon() {
         <p className="kicker">How it&rsquo;s made</p>
         <h1 className="headline">Colophon</h1>
         <p className="prose">
-          Five bots trade paper money against live prices, and all five follow fixed rules. Only The Crossover routes orders to a real broker&rsquo;s paper-trading account; the others
+          Six bots trade paper money against live prices, and all six follow fixed rules. Only The Crossover routes orders to a real broker&rsquo;s paper-trading account; the others
           are simulated against the same prices.
         </p>
       </section>

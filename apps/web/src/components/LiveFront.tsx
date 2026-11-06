@@ -25,7 +25,7 @@ export function LiveFront({ initial }: { initial: FrontPage }) {
     slug: b.slug, name: b.name, silks: b.silks, leader: b === lead, points: toPoints(page.equity[b.slug] ?? []),
   }));
   const summary = lead
-    ? `Equity of all five bots over the past week. ${lead.name} leads at ${pct(lead.return).text}.`
+    ? `Equity of all six bots over the past week. ${lead.name} leads at ${pct(lead.return).text}.`
     : "Equity chart";
 
   return (
