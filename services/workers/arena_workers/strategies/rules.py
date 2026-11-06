@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from ..common.indicators import highest, lowest, rsi, sma
 from ..common.models import Bar, Position, Signal
 from ..common.universe import BENCHMARK_SYMBOL
+from .quant import StatArb
 
 BUY_PCT = 0.10
 LOOKBACK_BARS = 120  # bars the live worker loads for each decision
@@ -176,7 +177,7 @@ class Scorecard:
 
 def build_strategy(
     kind: str, params: dict[str, float] | None = None
-) -> Crossover | RubberBand | Breakout | Index | Scorecard:
+) -> Crossover | RubberBand | Breakout | Index | Scorecard | StatArb:
     p = params or {}
     if kind == "crossover":
         return Crossover(int(p.get("fast", 20)), int(p.get("slow", 50)))
@@ -189,4 +190,7 @@ def build_strategy(
     if kind == "scorecard":
         return Scorecard(int(p.get("fast", 20)), int(p.get("slow", 50)), int(p.get("period", 14)),
                          p.get("overbought", 70.0))
+    if kind == "stat-arb":
+        return StatArb(int(p.get("window", 60)), p.get("entry", 1.25), p.get("exit", 0.50),
+                       p.get("max_half_life", 30.0), p.get("target_vol", 0.20), p.get("stop_loss", 0.03))
     raise ValueError(f"unknown strategy kind: {kind}")

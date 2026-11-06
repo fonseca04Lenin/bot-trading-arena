@@ -8,9 +8,11 @@ import psycopg
 from ..common import db
 from ..common.config import load_settings
 from ..common.submit import post_order, record_signal
+from ..common.universe import BENCHMARK_SYMBOL
+from .quant import StatArb
 from .rules import LOOKBACK_BARS, build_strategy
 
-RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard")
+RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard", "stat-arb")
 log = logging.getLogger("strategies")
 
 
@@ -28,10 +30,13 @@ def process_bar(conn: psycopg.Connection[dict[str, Any]], client: httpx.Client, 
     bots = conn.execute("SELECT id, slug, strategy_kind, params FROM bots WHERE strategy_kind = ANY(%s)",
                         (list(RULE_KINDS),)).fetchall()
     bars = db.load_bars(conn, symbol, "5Min", LOOKBACK_BARS)
+    bench = db.load_bars(conn, BENCHMARK_SYMBOL, "5Min", LOOKBACK_BARS)
     emitted = 0
     for bot in bots:
         strat = build_strategy(bot["strategy_kind"], bot["params"])
-        sig = strat.on_bar(symbol, bars, db.load_position(conn, bot["id"], symbol))
+        held = db.load_position(conn, bot["id"], symbol)
+        sig = (strat.on_bar(symbol, bars, held, benchmark=bench) if isinstance(strat, StatArb)
+               else strat.on_bar(symbol, bars, held))
         if sig is None or _recently_ordered(conn, bot["id"], sig.symbol, sig.side):
             continue
         sid = record_signal(conn, bot["id"], sig)
