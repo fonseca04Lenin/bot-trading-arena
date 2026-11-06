@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Caveat, IBM_Plex_Mono, Libre_Caslon_Display, Source_Serif_4, UnifrakturMaguntia } from "next/font/google";
 import "./globals.css";
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Footer />
           </GlossaryProvider>
         </LiveProvider>
+        <Analytics />
       </body>
     </html>
   );
