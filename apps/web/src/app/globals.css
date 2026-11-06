@@ -102,7 +102,7 @@ table.sr-only { display: block; }
 .front { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: 0; }
 .col { padding: 16px 16px; min-width: 0; }
 .col + .col { border-left: 1px solid var(--rule); }
-.c-8 { grid-column: span 8; } .c-4 { grid-column: span 4; } .c-12 { grid-column: span 12; } .c-5 { grid-column: span 5; } .c-7 { grid-column: span 7; }
+.c-8 { grid-column: span 8; } .c-4 { grid-column: span 4; } .c-12 { grid-column: span 12; } .c-5 { grid-column: span 5; } .c-6 { grid-column: span 6; } .c-7 { grid-column: span 7; }
 .headline { font-size: clamp(2.1rem, 5.6vw, 4rem); margin: 6px 0 8px; text-transform: uppercase; }
 .deck { font-size: 1.15rem; color: var(--ink-soft); font-style: italic; margin: 0; }
 .wash { background: var(--wash); padding: 14px 16px; border: 1px solid var(--rule); }
@@ -181,7 +181,7 @@ select, input { font: inherit; font-family: var(--font-mono); background: var(--
 .arch .cap { font-family: var(--font-body); font-variant-caps: all-small-caps; letter-spacing: 0.08em; font-size: 13px; font-weight: 600; }
 
 @media (max-width: 900px) {
-  .c-8, .c-4, .c-5, .c-7 { grid-column: span 12; }
+  .c-8, .c-4, .c-5, .c-6, .c-7 { grid-column: span 12; }
   .col + .col { border-left: 0; border-top: 1px solid var(--rule); }
 }
 @media (max-width: 640px) {

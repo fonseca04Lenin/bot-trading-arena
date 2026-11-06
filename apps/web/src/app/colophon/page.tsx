@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { Arch } from "@/components/Arch";
 import { ApiError, get, type Status } from "@/lib/api";
 import { plainPct, timeET } from "@/lib/format";
@@ -33,7 +34,7 @@ export default async function Colophon() {
       </section>
       <section className="col c-6" style={{ borderTop: "1px solid var(--rule)" }}>
         <div className="section-head"><h2>Typeset in</h2></div>
-        <dl className="dl">{STACK.map(([k, v]) => <><dt key={k}>{k}</dt><dd key={v} style={{ fontFamily: "var(--font-body)" }}>{v}</dd></>)}</dl>
+        <dl className="dl">{STACK.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd style={{ fontFamily: "var(--font-body)" }}>{v}</dd></Fragment>)}</dl>
       </section>
       <section className="col c-6" style={{ borderTop: "1px solid var(--rule)" }}>
         <div className="section-head"><h2>Live Status</h2></div>
