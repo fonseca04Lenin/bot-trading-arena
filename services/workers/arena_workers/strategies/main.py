@@ -17,10 +17,10 @@ log = logging.getLogger("strategies")
 
 
 def _recently_ordered(conn: psycopg.Connection[dict[str, Any]], bot_id: int, symbol: str, side: str) -> bool:
-    """Skip a repeat of a signal the execution service would only refuse for the 15-minute cooldown."""
+    """Skip a repeat of a signal the execution service would only refuse for the 5-minute cooldown."""
     row = conn.execute(
         """SELECT 1 FROM orders WHERE bot_id=%s AND symbol=%s AND side=%s
-           AND submitted_at > now() - interval '15 minutes' LIMIT 1""", (bot_id, symbol, side)).fetchone()
+           AND submitted_at > now() - interval '5 minutes' LIMIT 1""", (bot_id, symbol, side)).fetchone()
     return row is not None
 
 

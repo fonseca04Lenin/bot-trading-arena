@@ -7,7 +7,7 @@ use rust_decimal_macros::dec;
 
 pub const MAX_POSITIONS: usize = 5;
 pub const MAX_BUY_PCT: Decimal = dec!(0.10);
-pub const COOLDOWN_MINUTES: i64 = 15;
+pub const COOLDOWN_MINUTES: i64 = 5;
 /// Short positions may not exceed this share of equity in total.
 pub const SHORT_BOOK_MAX: Decimal = dec!(0.50);
 pub const SLIPPAGE: Decimal = dec!(0.0002);
