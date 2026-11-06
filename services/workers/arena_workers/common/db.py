@@ -24,6 +24,9 @@ BOT_SEED: list[dict[str, Any]] = [
      "params": {"risk_profile": "benchmark"}, "silks": {"pattern": "sash", "colors": ["olive", "paper"]}},
     {"slug": "analyst", "name": "The Analyst", "kind": "scorecard", "broker": "sim",
      "params": {"fast": 20, "slow": 50, "period": 14, "overbought": 70}, "silks": {"pattern": "diamonds", "colors": ["oxblood", "paper"]}},
+    {"slug": "quant", "name": "The Quant", "kind": "stat-arb", "broker": "sim",
+     "params": {"window": 60, "entry": 1.25, "exit": 0.5, "max_half_life": 30, "target_vol": 0.2, "stop_loss": 0.03},
+     "silks": {"pattern": "sash", "colors": ["slate", "ochre"]}},
 ]
 STARTING_CASH = 100_000
 
