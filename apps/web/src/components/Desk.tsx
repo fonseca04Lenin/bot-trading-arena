@@ -7,7 +7,7 @@ import { EquityChart } from "./EquityChart";
 import { Term } from "./Glossary";
 
 const STRATEGIES: [BacktestRequest["strategy_slug"], string][] = [
-  ["breakout", "The Breakout"], ["crossover", "The Crossover"], ["rubber-band", "The Rubber Band"], ["index", "The Index"], ["scorecard", "The Analyst"],
+  ["breakout", "The Breakout"], ["crossover", "The Crossover"], ["rubber-band", "The Rubber Band"], ["index", "The Index"], ["scorecard", "The Analyst (old rules)"],
 ];
 const SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "BTC/USD", "ETH/USD"];
 const SILKS = { pattern: "hooped", colors: ["ink", "paper"] as [string, string] };

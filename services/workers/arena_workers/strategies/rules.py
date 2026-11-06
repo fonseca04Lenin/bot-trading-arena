@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from ..common.indicators import highest, lowest, rsi, sma
 from ..common.models import Bar, Position, Signal
 from ..common.universe import BENCHMARK_SYMBOL
+from .forecast import Forecaster
+from .forecast_trader import ForecastTrader
 from .orb import OpeningRange
 from .quant import StatArb
 
@@ -177,9 +179,14 @@ class Scorecard:
 
 
 def build_strategy(
-    kind: str, params: dict[str, float] | None = None
-) -> Crossover | RubberBand | Breakout | Index | Scorecard | StatArb | OpeningRange:
+    kind: str, params: dict[str, float] | None = None, forecaster: Forecaster | None = None
+) -> Crossover | RubberBand | Breakout | Index | Scorecard | StatArb | OpeningRange | ForecastTrader:
     p = params or {}
+    if kind == "kronos":
+        if forecaster is None:
+            return Scorecard()  # no model loaded (see forecast.load_forecaster): keep the Analyst trading on rules
+        return ForecastTrader(forecaster, p.get("min_prob", 0.75), p.get("min_edge", 0.0006),
+                              p.get("stop_loss", 0.005), bool(p.get("allow_short", False)))
     if kind == "crossover":
         return Crossover(int(p.get("fast", 20)), int(p.get("slow", 50)))
     if kind == "rubber-band":

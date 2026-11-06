@@ -17,6 +17,11 @@ Deployment needs accounts and DNS that only the owner can grant, so it is a chec
    `EXECUTION_URL`, `MARKET_DATA_SOURCE=alpaca`, `ALPACA_API_KEY` / `ALPACA_API_SECRET` (paper keys),
    `ALPACA_TRADING_BASE_URL=https://paper-api.alpaca.markets`, and `CORS_ORIGINS=https://arena.elvinfonseca.com`.
    In production the execution service refuses a default `ARENA_KEY`, ignores `ARENA_FORCE_MARKET_OPEN`, and ingest refuses synthetic data.
+
+   The image installs CPU-only torch and the Kronos weights for the Analyst, which adds roughly 700 MB to the image and needs about
+   550 MB of RAM on the **strategies** service. Give that service at least 1 GB. To build without the model, set the build argument
+   `WITH_KRONOS=0`; the Analyst then falls back to its older rules. Set `KRONOS_DISABLED=1` on the strategies service to switch the model off
+   without a rebuild. The log line `forecast model loaded` (or `not loaded`) at startup says which one you got.
 3. **Vercel**: import `apps/web` as the project root. Set `API_URL` and `NEXT_PUBLIC_API_URL` to the Railway API URL.
    Add the `arena` CNAME for `elvinfonseca.com`.
 4. Run the Playwright smoke tests against production: `E2E_BASE_URL=https://arena.elvinfonseca.com npx playwright test`.

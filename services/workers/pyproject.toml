@@ -17,6 +17,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "mypy>=1.11"]
+# The Analyst's forecasting model. Install torch from the CPU index first (see deploy/Dockerfile.python): the default
+# Linux wheel drags in gigabytes of GPU libraries this never uses.
+forecast = ["torch>=2.2,<3", "numpy>=1.26,<3", "pandas>=2.2,<4", "einops>=0.8,<1", "huggingface_hub>=0.33,<2",
+            "safetensors>=0.5,<1", "tqdm>=4.66,<5"]
 
 [project.scripts]
 arena-ingest = "arena_workers.ingest.main:run"
@@ -30,17 +34,26 @@ include = ["arena_workers*"]
 [tool.setuptools.package-data]
 "arena_workers" = ["py.typed"]
 "arena_workers.analyst" = ["prompt.md"]
+"arena_workers.vendor.kronos" = ["LICENSE", "NOTICE.md"]
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["arena_workers/vendor"]
 
 [tool.mypy]
 strict = true
+exclude = ["arena_workers/vendor/"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["psycopg.*", "websockets.*"]
+module = ["psycopg.*", "websockets.*", "torch.*", "pandas.*", "numpy.*", "huggingface_hub.*"]
 ignore_missing_imports = true
+
+# Vendored upstream code is untyped. Excluding it and skipping its imports makes mypy treat what we import from it
+# as Any, instead of reporting every call into it.
+[[tool.mypy.overrides]]
+module = ["arena_workers.vendor.*"]
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

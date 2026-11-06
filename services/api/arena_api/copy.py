@@ -15,8 +15,10 @@ BOT_COPY: dict[str, str] = {
     "orb": "A day trader. It watches the first five minutes of the session: if that candle closes up it buys, if it closes "
            "down it sells short, with a stop at the other end of the candle. It closes everything before the bell and "
            "never holds overnight.",
-    "analyst": "Weighs three checks on every bar: the 20-bar average† above the 50-bar one, price above the 20-bar average, "
-               "and a 14-bar RSI† from 50 up to 70. It buys when all three pass and sells when one or none still does.",
+    "analyst": "A day trader run by a forecasting model. Every five minutes it asks Kronos†, an open-source AI trained on "
+               "candlestick charts, to simulate the next 30 minutes 16 times. It buys when most simulations end higher and "
+               "sells short when most end lower, then closes when the forecast turns, on a stop-loss, or before the bell. "
+               "It never holds shares overnight.",
 }
 
 GLOSSARY: list[dict[str, str]] = [
@@ -30,5 +32,7 @@ GLOSSARY: list[dict[str, str]] = [
     {"term": "slippage", "label": "Slippage", "definition": "The small gap between the last price and the price a market order actually fills at; here it is 0.02% against the bot."},
     {"term": "paper-trading", "label": "Paper trading", "definition": "Trading with pretend money at real prices, so nothing is at risk."},
     {"term": "benchmark", "label": "Benchmark", "definition": "A plain buy-and-hold of the market (SPY) that active strategies are measured against."},
+    {"term": "kronos", "label": "Kronos", "definition": "An open-source AI model trained on candlestick charts from 45 exchanges. Like a language model writing the next words, it writes the next candles; running it many times gives many possible futures."},
+    {"term": "short-selling", "label": "Short selling", "definition": "Borrowing shares to sell now and buying them back later. It profits if the price falls and loses if it rises."},
     {"term": "bar", "label": "Bar", "definition": "A summary of a time slice of trading: open, high, low and close prices and volume. Here a bar is five minutes."},
 ]

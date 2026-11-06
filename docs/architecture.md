@@ -7,7 +7,8 @@
    `NOTIFY bar_closed, '<symbol>|<timestamp>'`. Reconnects use exponential backoff. Without keys it runs a synthetic walk.
 2. **Strategy workers** listen for `bar_closed`, load recent bars and the bot's position, call the pure `on_bar` function of each
    rule bot, store the signal and POST it to the execution service. They skip a signal that would only be refused for the cooldown.
-3. **The Analyst** is a rule bot (`Scorecard`) that runs inside the strategy workers. The LLM version is parked; see below.
+3. **The Analyst** is a forecast-driven day trader (`ForecastTrader`) that runs inside the strategy workers and asks Kronos, an
+   open-source model trained on candlesticks, for a forecast on every closed bar. The LLM version is parked; see below.
 4. **Execution** (Rust) validates, de-duplicates by idempotency key, applies the risk rules, routes to a broker adapter and books the fill.
 5. **Scorer** writes an equity snapshot per bot every 5 minutes and sends `NOTIFY equity_tick`.
 6. **API** serves REST, computes the leaderboard metrics, and relays `NOTIFY` events to WebSocket clients as `trade_filled`,
@@ -25,11 +26,31 @@
 - A fill, the position change and the cash change commit in one transaction; any failure rolls all three back.
 - `/metrics` reports orders by status and p50/p95 signal-to-submit latency.
 
+## The Analyst's forecaster (Kronos)
+
+The live Analyst makes no LLM calls, so the site needs no Anthropic key. On each closed 5-minute bar the strategy worker gives
+[Kronos-small](https://huggingface.co/NeoQuasar/Kronos-small) (MIT, 24.7M parameters, trained on candlesticks from 45 exchanges; paper at
+arXiv 2508.02739) the last 100 regular-session candles. Kronos writes the next six candles token by token; the worker samples 16 such
+futures and keeps where each one ends (`forecast.py`, `kronos_model.py`). Three numbers come out: the share of futures that end higher
+(`P_UP`), their average move (`EXP_RET_PCT`) and their spread (`SD_PCT`). They are stored as the signal's evidence, so they show in the Wire and the daily report.
+
+- **Entries** (`forecast_trader.py`): buy when at least 75% of the futures end higher and the average gain is at least 0.06% (1.5 times the
+  round trip's slippage); sell short on the mirror image (equities only). Size is 3% to 10% of equity, growing with the expected move.
+- **Exits**: when both the vote and the average have flipped (either alone is too noisy with 16 samples), on a 0.5% stop-loss, or at the
+  15:50 candle. Equities take no entries before 09:45 or after 15:20 and are never held overnight. Crypto is long only, with no session rules.
+- **Cost**: CPU only, about 1.2 s per forecast and 550 MB of RAM in the strategies worker. Ten symbols take about 12 s per candle. Candles
+  older than 12 minutes are skipped.
+- **Pinned**: the vendored model code (`arena_workers/vendor/kronos`, see its `NOTICE.md`) and the Hugging Face revisions of the weights are
+  fixed in the repo, and the Docker build downloads the weights once.
+- **Fallbacks**: if the model cannot load (a build with `WITH_KRONOS=0`, a missing install) the Analyst runs its older `Scorecard` rules and
+  the worker logs `forecast model not loaded`. Set `KRONOS_DISABLED=1` to do the same without redeploying code. A single failed forecast
+  skips that bar.
+- **No claim of edge**: the model was not tuned on this universe, and short backtests of 5-minute forecasts are mostly noise. The arena is the test.
+
 ## The parked LLM Analyst
 
-The Analyst currently runs the rule-based `Scorecard` strategy, so the site needs no Anthropic key. The LLM agent described here is
-not deployed, but its code and evals are kept and CI still replays them. To bring it back, set the Analyst's `kind` in `BOT_SEED` to
-`analyst`, run the `arena-analyst` worker, and restore the site copy that describes it.
+The LLM agent described here is not deployed, but its code and evals are kept and CI still replays them. To bring it back, set the
+Analyst's `kind` in `BOT_SEED` to `analyst`, run the `arena-analyst` worker, and restore the site copy that describes it.
 
 `run_agent` drives a tool loop over four read-only tools (`get_bars`, `get_portfolio`, `get_indicators`, `get_recent_trades`) and
 ends with a `submit_decisions` call. The model only proposes. `guardrails.review` then:

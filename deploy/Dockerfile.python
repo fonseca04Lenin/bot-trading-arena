@@ -5,5 +5,16 @@ COPY services/workers /app/services/workers
 COPY services/api /app/services/api
 COPY evals /app/evals
 RUN pip install --no-cache-dir /app/services/workers /app/services/api
+# The Analyst's forecasting model (Kronos): CPU-only torch plus the pinned weights, baked in so the strategies worker
+# starts without reaching out to Hugging Face. It adds roughly 700 MB to the image and about 550 MB of RAM to the
+# strategies worker. Build with --build-arg WITH_KRONOS=0 to leave it out: the Analyst then runs its scorecard rules.
+# Torch comes from its own CPU index first, because the default Linux wheel pulls in gigabytes of GPU libraries.
+ARG WITH_KRONOS=1
+ENV HF_HOME=/opt/hf
+RUN if [ "$WITH_KRONOS" = "1" ]; then \
+      pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+      && pip install --no-cache-dir "/app/services/workers[forecast]" \
+      && python -c "from arena_workers.strategies.kronos_model import fetch_weights; fetch_weights()"; \
+    fi
 ENV EVALS_DIR=/app/evals/analyst
 CMD ["uvicorn", "arena_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
