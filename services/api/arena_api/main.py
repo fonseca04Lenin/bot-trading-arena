@@ -151,6 +151,7 @@ async def bot_detail(slug: str, response: Response) -> dict[str, Any]:
                           "last": last, "pnl": (last - float(p["avg_cost"])) * float(p["qty"])})
     m = await board.bot_metrics(bot)
     out: dict[str, Any] = {**board.bot_row(bot), **m, "positions": positions}
+    out["rank"] = next((r["rank"] for r in await board.leaderboard() if r["slug"] == slug), None)
     if bot["strategy_kind"] == "analyst":
         out["prompt_version"] = PROMPT_VERSION
         out["eval"] = board.eval_report()

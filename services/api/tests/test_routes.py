@@ -32,6 +32,7 @@ def test_front_page_has_all_bots_ranked(client: TestClient) -> None:
 
 def test_bots_and_detail(client: TestClient) -> None:
     assert len(client.get("/api/bots").json()) == 7
+    assert client.get("/api/bots/analyst").json()["rank"] in range(1, 8)
     d = client.get("/api/bots/analyst").json()
     assert d["slug"] == "analyst" and "prompt_version" not in d and "budget" not in d
     assert client.get("/api/bots/nobody").status_code == 404
