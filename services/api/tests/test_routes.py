@@ -20,11 +20,11 @@ def add_trade(c: psycopg.Connection, status: str = "filled") -> str:
     return str(oid)
 
 
-def test_front_page_has_five_bots_ranked(client: TestClient) -> None:
+def test_front_page_has_all_bots_ranked(client: TestClient) -> None:
     r = client.get("/api/front-page")
     assert r.status_code == 200
     body = r.json()
-    assert [x["rank"] for x in body["leaderboard"]] == [1, 2, 3, 4, 5]
+    assert [x["rank"] for x in body["leaderboard"]] == [1, 2, 3, 4, 5, 6]
     assert len(body["ticker"]) == 10 and body["headline"] and body["deck"]
     assert all(len(v) <= 300 for v in body["equity"].values())
     assert r.headers["cache-control"].startswith("public")
