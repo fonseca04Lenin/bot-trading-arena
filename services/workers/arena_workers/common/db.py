@@ -29,7 +29,7 @@ BOT_SEED: list[dict[str, Any]] = [
      "params": {"window": 60, "entry": 1.25, "exit": 0.5, "max_half_life": 30, "target_vol": 0.2, "stop_loss": 0.03},
      "silks": {"pattern": "sash", "colors": ["slate", "ochre"]}},
     {"slug": "orb", "name": "The Day Trader", "kind": "orb", "broker": "sim",
-     "params": {"allow_short": True, "risk_pct": 0.001, "min_range": 0.0005, "max_range": 0.015},
+     "params": {"allow_short": True, "allow_long": False, "risk_pct": 0.001, "min_range": 0.0005, "max_range": 0.015},
      "silks": {"pattern": "quartered", "colors": ["oxblood", "ochre"]}},
 ]
 STARTING_CASH = 100_000

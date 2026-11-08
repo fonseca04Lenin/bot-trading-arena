@@ -32,8 +32,9 @@ class OpeningRange:
     slug = "orb"
 
     def __init__(self, risk_pct: float = 0.001, min_range: float = 0.0005, max_range: float = 0.015,
-                 max_pct: float = 0.10) -> None:
+                 max_pct: float = 0.10, allow_long: bool = True) -> None:
         self.risk_pct, self.min_range, self.max_range, self.max_pct = risk_pct, min_range, max_range, max_pct
+        self.allow_long = allow_long  # False skips the days the opening candle closes up: shorts only
 
     def on_bar(
         self, symbol: str, bars: Sequence[Bar], position: Position | None
@@ -78,6 +79,8 @@ class OpeningRange:
             return None
         side: Side
         if first.c > first.o:
+            if not self.allow_long:
+                return None
             stop_frac = (px - lo) / px
             side, size = "BUY", self._size(stop_frac)
             why = (f"Bought {symbol} at ${_px(px)}: the opening five-minute candle closed up (range ${_px(lo)} to "

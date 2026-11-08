@@ -202,5 +202,6 @@ def build_strategy(
         return StatArb(int(p.get("window", 60)), p.get("entry", 1.25), p.get("exit", 0.50),
                        p.get("max_half_life", 30.0), p.get("target_vol", 0.20), p.get("stop_loss", 0.03))
     if kind == "orb":
-        return OpeningRange(p.get("risk_pct", 0.001), p.get("min_range", 0.0005), p.get("max_range", 0.015))
+        return OpeningRange(p.get("risk_pct", 0.001), p.get("min_range", 0.0005), p.get("max_range", 0.015),
+                            allow_long=bool(p.get("allow_long", True)))
     raise ValueError(f"unknown strategy kind: {kind}")

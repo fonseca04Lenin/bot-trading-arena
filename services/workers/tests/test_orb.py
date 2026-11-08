@@ -88,3 +88,15 @@ def test_ignores_crypto_and_days_without_an_opening_candle() -> None:
 
 def test_build_strategy_knows_the_day_trader() -> None:
     assert isinstance(build_strategy("orb", {"risk_pct": 0.002}), OpeningRange)
+
+
+def test_shorts_only_skips_an_up_opening_candle_but_still_shorts_a_down_one() -> None:
+    assert OpeningRange(allow_long=False).on_bar("SPY", [UP], None) is None
+    sig = OpeningRange(allow_long=False).on_bar("SPY", [DOWN], None)
+    assert sig is not None and sig.side == "SHORT"
+
+
+def test_build_strategy_reads_allow_long() -> None:
+    off, default = build_strategy("orb", {"allow_long": 0}), build_strategy("orb", {})
+    assert isinstance(off, OpeningRange) and isinstance(default, OpeningRange)
+    assert off.allow_long is False and default.allow_long is True

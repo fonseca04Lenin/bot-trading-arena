@@ -12,9 +12,9 @@ BOT_COPY: dict[str, str] = {
     "quant": "Strips the market's move out of a stock, then bets the leftover snaps back. When a stock is unusually cheap "
              "against SPY it buys, sized smaller the more the stock swings, and sells once the gap has closed. "
              "This is the single-factor form of statistical arbitrage.",
-    "orb": "A day trader. It watches the first five minutes of the session: if that candle closes up it buys, if it closes "
-           "down it sells short, with a stop at the other end of the candle. It closes everything before the bell and "
-           "never holds overnight.",
+    "orb": "A day trader that only bets on falls. It watches the first five minutes of the session: if that candle closes "
+           "down it sells short, with a stop at the other end of the candle, and if it closes up it stays out. It closes "
+           "everything before the bell and never holds overnight.",
     "analyst": "A day trader run by a forecasting model. Every five minutes it asks Kronos†, an open-source AI trained on "
                "candlestick charts, to simulate the next 30 minutes 16 times. It buys when most simulations end higher and "
                "sells short when most end lower, then closes when the forecast turns, on a stop-loss, or before the bell. "
