@@ -72,6 +72,13 @@ const ORDER_SELECT: &str =
     (SELECT price FROM fills f WHERE f.order_id = o.id ORDER BY filled_at LIMIT 1) AS fill_price
     FROM orders o JOIN bots b ON b.id = o.bot_id";
 
+/// A numeric setting from a bot's params. JSON numbers are read through their text so 0.2 stays exactly 0.2.
+fn param(params: &serde_json::Value, key: &str) -> Option<Decimal> {
+    params[key]
+        .as_f64()
+        .and_then(|_| params[key].to_string().parse().ok())
+}
+
 fn record(r: &PgRow) -> OrderRecord {
     OrderRecord {
         id: r.get("id"),
@@ -129,6 +136,9 @@ impl Service {
         let bot_id: i32 = bot.get("id");
         let params: serde_json::Value = bot.get("params");
         let allow_short = params["allow_short"] == true;
+        let max_pct = risk::position_cap(param(&params, "max_position_pct"));
+        let daily_loss_limit = param(&params, "daily_loss_limit").unwrap_or_default();
+        let max_drawdown = param(&params, "max_drawdown").unwrap_or_default();
         let profile = if params["risk_profile"] == "benchmark" {
             Profile::Benchmark
         } else {
@@ -192,6 +202,20 @@ impl Service {
         .fetch_one(&mut *tx)
         .await?;
 
+        // Yesterday's last snapshot is today's starting line; the highest snapshot ever is the peak.
+        let day_start_equity: Option<Decimal> = sqlx::query_scalar(
+            "SELECT equity FROM equity_snapshots WHERE bot_id=$1 AND ts < $2 ORDER BY ts DESC LIMIT 1",
+        )
+        .bind(bot_id)
+        .bind(risk::et_day_start(Utc::now()))
+        .fetch_optional(&mut *tx)
+        .await?;
+        let peak_equity: Option<Decimal> =
+            sqlx::query_scalar("SELECT max(equity) FROM equity_snapshots WHERE bot_id=$1")
+                .bind(bot_id)
+                .fetch_one(&mut *tx)
+                .await?;
+
         let decision = match price {
             None => Err("no price available".to_string()),
             Some(price) => risk::size_order(&Inputs {
@@ -209,6 +233,11 @@ impl Service {
                 price,
                 in_cooldown,
                 already_bought_once,
+                max_pct,
+                day_start_equity,
+                peak_equity,
+                daily_loss_limit,
+                max_drawdown,
             })
             .map(|q| (q, price)),
         };

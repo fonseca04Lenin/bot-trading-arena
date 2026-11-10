@@ -236,3 +236,15 @@ def test_worker_without_a_model_falls_back_instead_of_crashing(conn: psycopg.Con
     now = datetime.now(UTC).replace(second=0, microsecond=0)
     # Flat candles give the scorecard nothing to act on, so the point here is that the call completes.
     assert _run_worker(conn, monkeypatch, now - timedelta(minutes=5 * 129), None) == []
+
+
+def test_with_crypto_off_it_opens_no_crypto_but_still_manages_one_it_holds() -> None:
+    bars = history(time(11, 0))
+    off = ForecastTrader(Stub(UP), trade_crypto=False)
+    assert off.on_bar("BTC/USD", bars, None) is None
+    assert ForecastTrader(Stub(UP)).on_bar("BTC/USD", bars, None) is not None
+    stock = off.on_bar("AAPL", bars, None)
+    assert stock is not None and stock.side == "BUY"
+    held = Position("BTC/USD", 0.1, 100.0)
+    out = ForecastTrader(Stub(DOWN), trade_crypto=False).on_bar("BTC/USD", bars, held)
+    assert out is not None and out.side == "SELL"

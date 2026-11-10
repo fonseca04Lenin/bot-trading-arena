@@ -1,5 +1,6 @@
 """Pure indicator functions. Each returns None until its warm-up period is met."""
 
+import math
 from collections.abc import Sequence
 
 
@@ -37,6 +38,18 @@ def lowest(values: Sequence[float], period: int) -> float | None:
     if period <= 0 or len(values) < period:
         return None
     return min(values[-period:])
+
+
+def volatility(closes: Sequence[float], period: int = 20) -> float | None:
+    """Standard deviation of the last `period` close-to-close returns: how far one candle typically moves."""
+    if period < 2 or len(closes) < period + 1:
+        return None
+    window = closes[-(period + 1):]
+    if any(c <= 0 for c in window):
+        return None
+    rets = [window[i] / window[i - 1] - 1.0 for i in range(1, len(window))]
+    mean = sum(rets) / period
+    return math.sqrt(sum((r - mean) ** 2 for r in rets) / (period - 1))
 
 
 def daily_returns(equities: Sequence[float]) -> list[float]:

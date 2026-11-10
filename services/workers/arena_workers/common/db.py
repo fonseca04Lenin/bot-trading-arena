@@ -3,20 +3,30 @@ import logging
 import sys
 import time
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from datetime import time as dtime
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 
+from .clock import ET
 from .config import load_settings
 from .models import Bar, Position
 
+# Circuit breakers the execution service applies to a bot that sets them: no new positions once it is down 3% on
+# the day, or 30% below its best-ever equity. Exits are never blocked.
+BREAKERS: dict[str, Any] = {"daily_loss_limit": 0.03, "max_drawdown": 0.30}
+# The Crossover trades daily candles, sizes each position so it moves about 0.3% of equity a day, and may put up to
+# 20% of equity in one symbol (the execution service reads `max_position_pct` too). See strategies/rules.py for why.
+DAILY_TREND: dict[str, Any] = {"timeframe": "1Day", "risk_per_day": 0.003, "max_position_pct": 0.20, **BREAKERS}
+
 BOT_SEED: list[dict[str, Any]] = [
     {"slug": "crossover", "name": "The Crossover", "kind": "crossover", "broker": "alpaca_paper",
-     "params": {"fast": 20, "slow": 50}, "silks": {"pattern": "quartered", "colors": ["ink", "spot"]}},
+     "params": {"fast": 20, "slow": 50, **DAILY_TREND}, "silks": {"pattern": "quartered", "colors": ["ink", "spot"]}},
     {"slug": "rubber-band", "name": "The Rubber Band", "kind": "rubber-band", "broker": "sim",
-     "params": {"period": 14, "buy_below": 30, "sell_above": 70},
+     "params": {"period": 2, "buy_below": 10, "trend": 200, "exit_ma": 5, "timeframe": "1Day",
+                "risk_per_day": 0.004, "max_position_pct": 0.20, **BREAKERS},
      "silks": {"pattern": "hooped", "colors": ["ochre", "ink"]}},
     {"slug": "breakout", "name": "The Breakout", "kind": "breakout", "broker": "sim",
      "params": {"entry": 20, "exit": 10}, "silks": {"pattern": "chevron", "colors": ["slate", "paper"]}},
@@ -26,7 +36,8 @@ BOT_SEED: list[dict[str, Any]] = [
      "params": {"allow_short": True, "min_prob": 0.75, "min_edge": 0.0006, "stop_loss": 0.005},
      "silks": {"pattern": "diamonds", "colors": ["oxblood", "paper"]}},
     {"slug": "quant", "name": "The Quant", "kind": "stat-arb", "broker": "sim",
-     "params": {"window": 60, "entry": 1.25, "exit": 0.5, "max_half_life": 30, "target_vol": 0.2, "stop_loss": 0.03},
+     "params": {"window": 120, "entry": 2.0, "exit": 0.0, "max_half_life": 30, "target_vol": 0.2, "stop_loss": 0.03,
+                **BREAKERS},
      "silks": {"pattern": "sash", "colors": ["slate", "ochre"]}},
     {"slug": "orb", "name": "The Day Trader", "kind": "orb", "broker": "sim",
      "params": {"allow_short": True, "allow_long": False, "risk_pct": 0.001, "min_range": 0.0005, "max_range": 0.015},
@@ -95,6 +106,40 @@ def load_bars(conn: psycopg.Connection[dict[str, Any]], symbol: str, timeframe: 
         (symbol, timeframe, start, start, end, end, limit),
     ).fetchall()
     return [Bar(r["ts"], float(r["o"]), float(r["h"]), float(r["l"]), float(r["c"]), float(r["v"])) for r in rows]
+
+
+def merge_daily(stored: Sequence[Bar], rebuilt: Sequence[tuple[date, Bar]], limit: int) -> list[Bar]:
+    """Daily candles, oldest first: stored ones up to where the rebuilt ones start, then the rebuilt ones.
+
+    `rebuilt` are days put together from five-minute candles, the last of which is today so far. The first rebuilt
+    day is dropped because the five-minute history usually starts part-way through it.
+    """
+    days = list(rebuilt[1:])
+    if not days:
+        return list(stored)[-limit:]
+    first = days[0][0]
+    older = [b for b in stored if b.ts.astimezone(ET).date() < first]
+    return (older + [b for _, b in days])[-limit:]
+
+
+def load_daily(conn: psycopg.Connection[dict[str, Any]], symbol: str, limit: int) -> list[Bar]:
+    """Daily candles ending with today's candle so far.
+
+    The stored daily candles are only refreshed when ingest restarts, so recent days are rebuilt from five-minute
+    candles (regular session only for equities) and the stored ones fill in the older history.
+    """
+    session = "" if "/" in symbol else (
+        "AND (ts AT TIME ZONE 'America/New_York')::time >= '09:30' "
+        "AND (ts AT TIME ZONE 'America/New_York')::time < '16:00'")
+    rows = conn.execute(
+        f"""SELECT (ts AT TIME ZONE 'America/New_York')::date AS d, (array_agg(o ORDER BY ts))[1] AS o,
+                   max(h) AS h, min(l) AS l, (array_agg(c ORDER BY ts DESC))[1] AS c, sum(v) AS v
+            FROM bars WHERE symbol=%s AND timeframe='5Min' AND ts > %s {session}
+            GROUP BY d ORDER BY d""",
+        (symbol, datetime.now(UTC) - timedelta(days=120))).fetchall()
+    rebuilt = [(r["d"], Bar(datetime.combine(r["d"], dtime(0), ET).astimezone(UTC), float(r["o"]), float(r["h"]),
+                            float(r["l"]), float(r["c"]), float(r["v"]))) for r in rows]
+    return merge_daily(load_bars(conn, symbol, "1Day", limit), rebuilt, limit)
 
 
 def load_position(conn: psycopg.Connection[dict[str, Any]], bot_id: int, symbol: str) -> Position | None:

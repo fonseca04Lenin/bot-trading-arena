@@ -702,3 +702,135 @@ async fn covering_with_no_short_is_refused() {
         .unwrap();
     assert_eq!(o.reject_reason.unwrap(), "no short position to cover");
 }
+
+#[tokio::test]
+async fn a_bot_can_raise_its_own_position_cap_but_not_past_the_ceiling() {
+    let e = setup().await;
+    let s = signal(&e.pool, "crossover", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "AAPL", "BUY", dec!(0.20)))
+        .await
+        .unwrap();
+    assert_eq!(
+        o.reject_reason.as_deref(),
+        Some("target_pct outside (0, 0.10]")
+    );
+
+    sqlx::query("UPDATE bots SET params='{\"max_position_pct\":0.2}' WHERE slug='crossover'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    let s = signal(&e.pool, "crossover", "SPY").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "SPY", "BUY", dec!(0.20)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "filled");
+    assert_eq!(o.qty, dec!(199.9600)); // 20,000 / 100.02
+
+    sqlx::query("UPDATE bots SET params='{\"max_position_pct\":0.9}' WHERE slug='crossover'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    let s = signal(&e.pool, "crossover", "BTC/USD").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "BTC/USD", "BUY", dec!(0.30)))
+        .await
+        .unwrap();
+    assert_eq!(
+        o.reject_reason.as_deref(),
+        Some("target_pct outside (0, 0.20]")
+    );
+}
+
+async fn snapshot(pool: &PgPool, bot: &str, age: &str, equity: Decimal) {
+    sqlx::query(
+        "INSERT INTO equity_snapshots (bot_id, ts, equity)
+         SELECT id, now() - $2::interval, $3 FROM bots WHERE slug=$1",
+    )
+    .bind(bot)
+    .bind(age)
+    .bind(equity)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_bot_down_three_percent_on_the_day_opens_nothing_more() {
+    let e = setup().await;
+    // Yesterday it was worth 103,500; today it has 100,000. That is 3.4% down on the day.
+    snapshot(&e.pool, "crossover", "2 days", dec!(103500)).await;
+    let s = signal(&e.pool, "crossover", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "filled"); // a bot that sets no limit has none
+
+    sqlx::query("UPDATE bots SET params='{\"daily_loss_limit\":0.03}' WHERE slug='crossover'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    let s = signal(&e.pool, "crossover", "BTC/USD").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "BTC/USD", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "rejected");
+    assert_eq!(
+        o.reject_reason.as_deref(),
+        Some("daily loss limit: down more than 3% today")
+    );
+
+    sqlx::query("UPDATE bots SET params='{\"daily_loss_limit\":0}' WHERE slug='crossover'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    let s = signal(&e.pool, "crossover", "SPY").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "SPY", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "filled"); // 0 switches the limit off again
+}
+
+#[tokio::test]
+async fn a_bot_far_below_its_peak_opens_nothing_more_but_can_still_sell() {
+    let e = setup().await;
+    sqlx::query("UPDATE bots SET params='{\"max_drawdown\":0.3}' WHERE slug='crossover'")
+        .execute(&e.pool)
+        .await
+        .unwrap();
+    let s = signal(&e.pool, "crossover", "AAPL").await;
+    e.svc
+        .place(order(s, "crossover", "AAPL", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    // Its best day was 150,000; at about 100,000 now it is more than 30% below that.
+    snapshot(&e.pool, "crossover", "30 days", dec!(150000)).await;
+    snapshot(&e.pool, "crossover", "2 days", dec!(100000)).await;
+    let s = signal(&e.pool, "crossover", "SPY").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "SPY", "BUY", dec!(0.10)))
+        .await
+        .unwrap();
+    assert_eq!(
+        o.reject_reason.as_deref(),
+        Some("drawdown limit: more than 30% below its peak")
+    );
+    let s = signal(&e.pool, "crossover", "AAPL").await;
+    let o = e
+        .svc
+        .place(order(s, "crossover", "AAPL", "SELL", dec!(0)))
+        .await
+        .unwrap();
+    assert_eq!(o.status, "filled");
+}

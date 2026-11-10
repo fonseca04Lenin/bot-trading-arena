@@ -15,11 +15,22 @@
    `equity_tick` and `price_tick`. Every service writes a heartbeat row every 30 seconds, which feeds `/api/status` and the uptime figure.
 7. **Web** server-renders each page from the API, then hydrates the live parts. The client reconnects with backoff and refetches after reconnecting.
 
+## Timeframes
+
+The Analyst, the Quant, the Breakout and the Day Trader decide on every closed 5-minute bar. The Crossover and the Rubber Band
+trade daily candles (`"timeframe": "1Day"` in their params): they decide once a day, on the bar that closes at 15:50 ET, reading daily
+candles that `db.load_daily` rebuilds from 5-minute bars (the stored daily bars are only refreshed when ingest restarts). They size each
+position by volatility (`risk_per_day`). The reason is a replay: on 60 days of 5-minute bars these rules lost before costs and traded
+40 to 180 times their equity; on 20 years of daily bars the same rules had a Sharpe ratio near 1.0 with half the benchmark's drawdown.
+The Desk backtester replays daily candles with each bot's live params, so it now tests what the live bot does.
+
 ## Execution service
 
 - `POST /v1/orders` needs `X-Arena-Key`. The same `idempotency_key` (or `signal_id`) always returns the original order.
-- A per-bot row lock serialises risk checks. Sizing and the rules (10% of equity per buy, five positions, 5-minute cooldown on entries (exits are exempt), no
-  equity orders when the market is closed, long only unless a bot's params allow shorts: whole shares, equities only, at most 50% of equity short) live in `risk.rs` as pure functions. The benchmark bot is exempt through
+- A per-bot row lock serialises risk checks. Sizing and the rules (10% of equity per buy, or up to 20% if the bot's params set `max_position_pct`; five positions; 5-minute cooldown on entries (exits are exempt); no
+  equity orders when the market is closed; long only unless a bot's params allow shorts: whole shares, equities only, at most 50% of equity short) live in `risk.rs` as pure functions.
+- Two opt-in circuit breakers stop a bot opening new positions, and never stop it closing one: down 3% on the day (`daily_loss_limit`, measured from the last
+  equity snapshot before New York midnight), or 30% below its best-ever equity (`max_drawdown`). A bot has one only if its params set it; the Crossover, the Rubber Band and the Quant do. The benchmark bot is exempt through
   `risk_profile = "benchmark"` in its params, not by slug.
 - Brokers: `sim` fills at the latest price with 2 bp of slippage; `alpaca_paper` submits a market order to Alpaca's paper API and polls for the fill.
   If no Alpaca keys are configured, `alpaca_paper` bots fall back to the simulator and the order records the broker actually used.

@@ -35,7 +35,10 @@ class BacktestRequest(BaseModel):
 def _compute(req: BacktestRequest, rows: list[Any]) -> dict[str, Any]:
     from arena_workers.common.models import Bar
     bars = [Bar(r["ts"], float(r["o"]), float(r["h"]), float(r["l"]), float(r["c"]), float(r["v"])) for r in rows]
-    res = run_backtest(build_strategy(req.strategy_slug, req.params), req.symbol, bars)
+    # The Desk replays daily candles with the live bot's own settings, unless the caller overrides one.
+    live: dict[str, Any] = next((b["params"] for b in wdb.BOT_SEED if b["kind"] == req.strategy_slug), {})
+    params = {**live, **req.params, "timeframe": "1Day"}
+    res = run_backtest(build_strategy(req.strategy_slug, params), req.symbol, bars)
     return {
         "equity": [{"ts": t, "equity": e} for t, e in res.equity],
         "trades": [t.__dict__ for t in res.trades],
@@ -54,5 +57,3 @@ async def run(req: BacktestRequest) -> dict[str, Any]:
         raise ValueError("no daily bars for that symbol and range")
     return await asyncio.wait_for(asyncio.to_thread(_compute, req, rows), TIME_LIMIT)
 
-
-_ = wdb

@@ -53,8 +53,9 @@ class ForecastTrader:
 
     def __init__(self, forecaster: Forecaster, min_prob: float = 0.75, min_edge: float = 0.0006,
                  stop_loss: float = 0.005, allow_short: bool = False, max_pct: float = 0.10,
-                 min_bars: int = CONTEXT_BARS) -> None:
+                 min_bars: int = CONTEXT_BARS, trade_crypto: bool = True) -> None:
         self.forecaster, self.min_prob, self.min_edge = forecaster, min_prob, min_edge
+        self.trade_crypto = trade_crypto  # False: no new crypto positions; one already held is still managed
         self.stop_loss, self.allow_short, self.max_pct, self.min_bars = stop_loss, allow_short, max_pct, min_bars
 
     def on_bar(self, symbol: str, bars: Sequence[Bar], position: Position | None) -> Signal | None:
@@ -85,6 +86,8 @@ class ForecastTrader:
                 way = "fell" if long else "rose"
                 return self._exit(symbol, long, px, ts, f"it {way} {self.stop_loss:.1%} past the "
                                   f"${_px(position.avg_cost)} entry, so the forecast was wrong this time", [])
+        elif crypto and not self.trade_crypto:
+            return None
         elif not crypto and not FIRST_ENTRY <= et.time() <= LAST_ENTRY:
             return None
 

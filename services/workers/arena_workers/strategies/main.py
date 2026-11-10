@@ -1,12 +1,14 @@
 import logging
 import time
 from datetime import UTC, datetime, timedelta
+from datetime import time as dtime
 from typing import Any
 
 import httpx
 import psycopg
 
 from ..common import db
+from ..common.clock import to_et
 from ..common.config import load_settings
 from ..common.models import Bar
 from ..common.submit import post_order, record_signal
@@ -14,11 +16,18 @@ from ..common.universe import BENCHMARK_SYMBOL
 from .forecast import Forecaster, load_forecaster
 from .forecast_trader import ForecastTrader
 from .quant import StatArb
-from .rules import LOOKBACK_BARS, build_strategy
+from .rules import DAILY, LOOKBACK_BARS, build_strategy
 
 RULE_KINDS = ("crossover", "rubber-band", "breakout", "index", "scorecard", "stat-arb", "orb", "kronos")
 STALE_AFTER = timedelta(minutes=12)  # a forecast on an old candle is a forecast of the past
+# Bots on daily candles decide once a day, on the candle that closes at 15:50 ET. By then the day's candle is
+# all but final and the market is still open to fill the order. Crypto uses the same clock, weekends included.
+DAILY_DECISION = dtime(15, 45)
 log = logging.getLogger("strategies")
+
+
+def is_daily_decision(ts: datetime) -> bool:
+    return to_et(ts).time().replace(second=0, microsecond=0) == DAILY_DECISION
 
 
 def _stale(bars: list[Bar]) -> bool:
@@ -39,20 +48,32 @@ def process_bar(conn: psycopg.Connection[dict[str, Any]], client: httpx.Client, 
     s = load_settings()
     bots = conn.execute("SELECT id, slug, strategy_kind, params FROM bots WHERE strategy_kind = ANY(%s)",
                         (list(RULE_KINDS),)).fetchall()
-    bars = db.load_bars(conn, symbol, "5Min", LOOKBACK_BARS)
-    bench = db.load_bars(conn, BENCHMARK_SYMBOL, "5Min", LOOKBACK_BARS)
-    long_bars: list[Bar] | None = None  # the forecaster reads more history than the rule bots do
+    loaded: dict[tuple[str, int], list[Bar]] = {}  # bots share a load when they want the same history
+
+    def history(sym: str, n: int) -> list[Bar]:
+        if (sym, n) not in loaded:
+            loaded[sym, n] = db.load_bars(conn, sym, "5Min", n)
+        return loaded[sym, n]
+
+    bars = history(symbol, LOOKBACK_BARS)
+    daily: list[Bar] | None = None
     emitted = 0
     for bot in bots:
         strat = build_strategy(bot["strategy_kind"], bot["params"], forecaster)
         held = db.load_position(conn, bot["id"], symbol)
-        if isinstance(strat, ForecastTrader):
-            long_bars = long_bars if long_bars is not None else db.load_bars(conn, symbol, "5Min", strat.history_bars)
+        want = getattr(strat, "history_bars", LOOKBACK_BARS)
+        if getattr(strat, "timeframe", "5Min") == DAILY:
+            if not bars or _stale(bars) or not is_daily_decision(bars[-1].ts):
+                continue
+            daily = daily if daily is not None else db.load_daily(conn, symbol, 260)
+            sig = strat.on_bar(symbol, daily[-want:], held)
+        elif isinstance(strat, ForecastTrader):
+            long_bars = history(symbol, want)
             if _stale(long_bars):
                 continue
             sig = strat.on_bar(symbol, long_bars, held)
         elif isinstance(strat, StatArb):
-            sig = strat.on_bar(symbol, bars, held, benchmark=bench)
+            sig = strat.on_bar(symbol, history(symbol, want), held, benchmark=history(BENCHMARK_SYMBOL, want))
         else:
             sig = strat.on_bar(symbol, bars, held)
         if sig is None or _recently_ordered(conn, bot["id"], sig.symbol, sig.side):

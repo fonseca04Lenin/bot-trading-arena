@@ -1,12 +1,22 @@
 //! Pure risk and sizing rules (spec 6.3). No I/O, so every rule is unit-testable.
 
-use chrono::{DateTime, Datelike, NaiveTime, Utc, Weekday};
+use chrono::{DateTime, Datelike, NaiveTime, TimeZone, Utc, Weekday};
 use chrono_tz::America::New_York;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 pub const MAX_POSITIONS: usize = 5;
+/// Share of equity one position may take unless the bot's params set `max_position_pct`.
 pub const MAX_BUY_PCT: Decimal = dec!(0.10);
+/// No bot may set `max_position_pct` above this: five positions then use all of its equity and no more.
+pub const MAX_BUY_PCT_CEILING: Decimal = dec!(0.20);
+/// The two circuit breakers are opt-in: a bot has one only if its params set it, and 0 (the default) means off.
+/// `daily_loss_limit`: a bot down this much on the day opens nothing more until tomorrow. The usual setting.
+pub const DAILY_LOSS_LIMIT: Decimal = dec!(0.03);
+/// `max_drawdown`: a bot this far below its best-ever equity opens nothing more. The usual setting.
+/// It stays halted until its open positions recover or someone raises the limit. Over 20 years of daily candles
+/// the trend bots' worst falls were 21-27%, so 30% is outside what they do when they are working.
+pub const MAX_DRAWDOWN: Decimal = dec!(0.30);
 pub const COOLDOWN_MINUTES: i64 = 5;
 /// Short positions may not exceed this share of equity in total.
 pub const SHORT_BOOK_MAX: Decimal = dec!(0.50);
@@ -79,6 +89,64 @@ pub struct Inputs {
     pub price: Decimal,
     pub in_cooldown: bool,
     pub already_bought_once: bool,
+    /// Largest share of equity one position may take, already clamped to the ceiling.
+    pub max_pct: Decimal,
+    /// Equity at the last snapshot before today (ET), if there is one.
+    pub day_start_equity: Option<Decimal>,
+    /// Highest equity ever snapshotted, if there is one.
+    pub peak_equity: Option<Decimal>,
+    pub daily_loss_limit: Decimal,
+    pub max_drawdown: Decimal,
+}
+
+/// The per-position cap a bot asked for, kept inside (0, ceiling]. Anything unusable falls back to the default.
+pub fn position_cap(requested: Option<Decimal>) -> Decimal {
+    match requested {
+        Some(p) if p > Decimal::ZERO => p.min(MAX_BUY_PCT_CEILING),
+        _ => MAX_BUY_PCT,
+    }
+}
+
+/// Midnight at the start of the current New York day, as a UTC instant.
+pub fn et_day_start(now: DateTime<Utc>) -> DateTime<Utc> {
+    let midnight = now
+        .with_timezone(&New_York)
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+    New_York
+        .from_local_datetime(&midnight)
+        .earliest()
+        .map(|t| t.with_timezone(&Utc))
+        .unwrap_or(now)
+}
+
+/// Why this bot may not open a new position right now, if it may not. Exits are never blocked by this.
+pub fn halted(i: &Inputs) -> Option<String> {
+    let hundred = Decimal::ONE_HUNDRED;
+    if let Some(start) = i.day_start_equity {
+        if i.daily_loss_limit > Decimal::ZERO
+            && start > Decimal::ZERO
+            && i.equity <= start * (Decimal::ONE - i.daily_loss_limit)
+        {
+            return Some(format!(
+                "daily loss limit: down more than {}% today",
+                (i.daily_loss_limit * hundred).normalize()
+            ));
+        }
+    }
+    if let Some(peak) = i.peak_equity {
+        if i.max_drawdown > Decimal::ZERO
+            && peak > Decimal::ZERO
+            && i.equity <= peak * (Decimal::ONE - i.max_drawdown)
+        {
+            return Some(format!(
+                "drawdown limit: more than {}% below its peak",
+                (i.max_drawdown * hundred).normalize()
+            ));
+        }
+    }
+    None
 }
 
 pub fn equity_market_open(now: DateTime<Utc>) -> bool {
@@ -129,11 +197,14 @@ pub fn size_order(i: &Inputs) -> Result<Decimal, String> {
                 }
                 i.cash * i.target_pct.min(Decimal::ONE)
             } else {
+                if let Some(why) = halted(i) {
+                    return Err(why);
+                }
                 if i.open_positions >= MAX_POSITIONS {
                     return Err(format!("position limit: {MAX_POSITIONS} open positions"));
                 }
-                if i.target_pct <= Decimal::ZERO || i.target_pct > MAX_BUY_PCT {
-                    return Err("target_pct outside (0, 0.10]".into());
+                if i.target_pct <= Decimal::ZERO || i.target_pct > i.max_pct {
+                    return Err(format!("target_pct outside (0, {}]", i.max_pct));
                 }
                 i.equity * i.target_pct
             };
@@ -160,11 +231,14 @@ pub fn size_order(i: &Inputs) -> Result<Decimal, String> {
             if i.held_qty != Decimal::ZERO {
                 return Err("already holding this symbol".into());
             }
+            if let Some(why) = halted(i) {
+                return Err(why);
+            }
             if i.open_positions >= MAX_POSITIONS {
                 return Err(format!("position limit: {MAX_POSITIONS} open positions"));
             }
-            if i.target_pct <= Decimal::ZERO || i.target_pct > MAX_BUY_PCT {
-                return Err("target_pct outside (0, 0.10]".into());
+            if i.target_pct <= Decimal::ZERO || i.target_pct > i.max_pct {
+                return Err(format!("target_pct outside (0, {}]", i.max_pct));
             }
             let notional = i.equity * i.target_pct;
             if i.short_exposure + notional > i.equity * SHORT_BOOK_MAX {
@@ -212,7 +286,78 @@ mod tests {
             price: dec!(100),
             in_cooldown: false,
             already_bought_once: false,
+            max_pct: MAX_BUY_PCT,
+            day_start_equity: None,
+            peak_equity: None,
+            daily_loss_limit: DAILY_LOSS_LIMIT,
+            max_drawdown: MAX_DRAWDOWN,
         }
+    }
+
+    #[test]
+    fn a_bot_may_raise_its_position_cap_up_to_the_ceiling() {
+        assert_eq!(position_cap(None), dec!(0.10));
+        assert_eq!(position_cap(Some(dec!(0.15))), dec!(0.15));
+        assert_eq!(position_cap(Some(dec!(0.90))), dec!(0.20));
+        assert_eq!(position_cap(Some(dec!(-1))), dec!(0.10));
+        let mut i = base();
+        i.target_pct = dec!(0.20);
+        assert_eq!(size_order(&i).unwrap_err(), "target_pct outside (0, 0.10]");
+        i.max_pct = position_cap(Some(dec!(0.20)));
+        assert_eq!(size_order(&i).unwrap(), dec!(199.9600));
+    }
+
+    #[test]
+    fn a_bad_day_stops_new_entries_but_never_exits() {
+        let mut i = base();
+        i.day_start_equity = Some(dec!(100000));
+        i.equity = dec!(97100);
+        assert!(size_order(&i).is_ok()); // down 2.9%: still inside the 3% limit
+        i.equity = dec!(97000);
+        assert_eq!(
+            size_order(&i).unwrap_err(),
+            "daily loss limit: down more than 3% today"
+        );
+        i.side = Side::Short;
+        i.allow_short = true;
+        assert!(size_order(&i).unwrap_err().starts_with("daily loss limit"));
+        i.side = Side::Sell;
+        i.held_qty = dec!(10);
+        assert_eq!(size_order(&i).unwrap(), dec!(10)); // closing a position is always allowed
+        i.side = Side::Buy;
+        i.held_qty = Decimal::ZERO;
+        i.daily_loss_limit = Decimal::ZERO;
+        assert!(size_order(&i).is_ok()); // 0 switches the limit off
+    }
+
+    #[test]
+    fn a_deep_drawdown_stops_new_entries() {
+        let mut i = base();
+        i.peak_equity = Some(dec!(120000));
+        i.equity = dec!(84001);
+        assert!(size_order(&i).is_ok());
+        i.equity = dec!(84000);
+        assert_eq!(
+            size_order(&i).unwrap_err(),
+            "drawdown limit: more than 30% below its peak"
+        );
+        i.profile = Profile::Benchmark;
+        i.target_pct = Decimal::ONE;
+        assert!(size_order(&i).is_ok()); // the benchmark just holds, so it is never halted
+    }
+
+    #[test]
+    fn the_trading_day_starts_at_new_york_midnight() {
+        let now = Utc.with_ymd_and_hms(2026, 11, 10, 18, 0, 0).unwrap(); // 13:00 EST
+        assert_eq!(
+            et_day_start(now),
+            Utc.with_ymd_and_hms(2026, 11, 10, 5, 0, 0).unwrap()
+        );
+        let summer = Utc.with_ymd_and_hms(2026, 7, 1, 2, 0, 0).unwrap(); // 22:00 EDT the day before
+        assert_eq!(
+            et_day_start(summer),
+            Utc.with_ymd_and_hms(2026, 6, 30, 4, 0, 0).unwrap()
+        );
     }
 
     #[test]

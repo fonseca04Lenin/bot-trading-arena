@@ -1,17 +1,19 @@
 """Plain-English copy for each bot and the glossary (spec 2, 11.7)."""
 
 BOT_COPY: dict[str, str] = {
-    "crossover": "Buys when a short-term average price rises above a long-term one, and sells when it falls back below. "
-                 "It watches the 20-bar and 50-bar moving averages† on 5-minute bars. This bot routes its orders to Alpaca's paper-trading broker.",
-    "rubber-band": "Buys after a sharp drop, betting the price snaps back. It reads the 14-bar RSI†: "
-                   "below 30 it buys, above 70 it sells.",
+    "crossover": "Follows the trend on daily candles. It buys when the 20-day moving average† is above the 50-day one and "
+                 "sells when it falls back below. It decides once a day, just before the close, and puts less money into "
+                 "symbols that swing more. This bot routes its orders to Alpaca's paper-trading broker.",
+    "rubber-band": "Buys a sharp dip in a stock that is still in an uptrend, betting the price snaps back. It buys when "
+                   "the 2-day RSI† drops below 10 while the price is above its 200-day average, and sells on the first "
+                   "close back above the 5-day average. It decides once a day, just before the close.",
     "breakout": "Buys when price breaks above its recent range: a close above the highest high of the previous 20 bars. "
                 "It sells on a close below the lowest low of the previous 10 bars.",
     "index": "Buys the market once and holds. It puts all its cash in SPY on the first open bar and never sells. "
              "It is the benchmark every other bot has to beat.",
     "quant": "Strips the market's move out of a stock, then bets the leftover snaps back. When a stock is unusually cheap "
-             "against SPY it buys, sized smaller the more the stock swings, and sells once the gap has closed. "
-             "This is the single-factor form of statistical arbitrage.",
+             "against SPY it buys, sized smaller the more the stock swings, and sells once the gap has fully closed. "
+             "It waits for a large gap, so it trades rarely. This is the single-factor form of statistical arbitrage.",
     "orb": "A day trader that only bets on falls. It watches the first five minutes of the session: if that candle closes "
            "down it sells short, with a stop at the other end of the candle, and if it closes up it stays out. It closes "
            "everything before the bell and never holds overnight.",
@@ -34,5 +36,5 @@ GLOSSARY: list[dict[str, str]] = [
     {"term": "benchmark", "label": "Benchmark", "definition": "A plain buy-and-hold of the market (SPY) that active strategies are measured against."},
     {"term": "kronos", "label": "Kronos", "definition": "An open-source AI model trained on candlestick charts from 45 exchanges. Like a language model writing the next words, it writes the next candles; running it many times gives many possible futures."},
     {"term": "short-selling", "label": "Short selling", "definition": "Borrowing shares to sell now and buying them back later. It profits if the price falls and loses if it rises."},
-    {"term": "bar", "label": "Bar", "definition": "A summary of a time slice of trading: open, high, low and close prices and volume. Here a bar is five minutes."},
+    {"term": "bar", "label": "Bar", "definition": "A summary of a time slice of trading: open, high, low and close prices and volume. Here a bar is five minutes, or one day for the bots that trade daily candles."},
 ]
