@@ -99,27 +99,22 @@ impl Broker for AlpacaPaper {
     }
 
     async fn execute(&self, req: &OrderRequest<'_>) -> Result<BrokerFill> {
-        let body = json!({
-            "symbol": req.symbol,
-            "qty": req.qty.to_string(),
-            "side": req.side.broker_side(),
-            "type": "market",
-            "time_in_force": if req.is_crypto { "gtc" } else { "day" },
-            "client_order_id": req.client_order_id,
-        });
-        // A send error can mean the order arrived anyway, so it is "unknown", not "rejected".
-        let resp = match self
-            .http
-            .post(format!("{}/v2/orders", self.base_url))
-            .header("APCA-API-KEY-ID", &self.key)
-            .header("APCA-API-SECRET-KEY", &self.secret)
-            .json(&body)
-            .send()
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => return Err(StillPending(format!("order request failed: {e}")).into()),
-        };
+        let mut qty = req.qty;
+        let mut resp = self.place(req, qty).await?;
+        // Alpaca takes its crypto fee out of the coin we buy, so we can hold slightly less than the ledger says.
+        // Selling the ledger quantity is then refused for "insufficient balance". Sell what the broker really has;
+        // the ledger still closes the whole position, so a sliver of dust is not left behind to be re-sold forever.
+        if !resp.status().is_success() && req.is_crypto && req.side == Side::Sell {
+            let text = resp.text().await.unwrap_or_default();
+            match balance_shortfall(&text, qty) {
+                Some(available) => {
+                    tracing::warn!(symbol = req.symbol, %qty, %available, "selling the balance the broker holds");
+                    qty = available;
+                    resp = self.place(req, qty).await?;
+                }
+                None => bail!("alpaca rejected order: 403 Forbidden {text}"),
+            }
+        }
         if !resp.status().is_success() {
             bail!(
                 "alpaca rejected order: {} {}",
@@ -177,6 +172,30 @@ impl Broker for AlpacaPaper {
 }
 
 impl AlpacaPaper {
+    /// Posts one market order. A send error can mean the order arrived anyway, so it is "unknown", not "rejected".
+    async fn place(&self, req: &OrderRequest<'_>, qty: Decimal) -> Result<reqwest::Response> {
+        let body = json!({
+            "symbol": req.symbol,
+            "qty": qty.to_string(),
+            "side": req.side.broker_side(),
+            "type": "market",
+            "time_in_force": if req.is_crypto { "gtc" } else { "day" },
+            "client_order_id": req.client_order_id,
+        });
+        match self
+            .http
+            .post(format!("{}/v2/orders", self.base_url))
+            .header("APCA-API-KEY-ID", &self.key)
+            .header("APCA-API-SECRET-KEY", &self.secret)
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(r) => Ok(r),
+            Err(e) => Err(StillPending(format!("order request failed: {e}")).into()),
+        }
+    }
+
     async fn fetch(&self, url: &str) -> Result<serde_json::Value> {
         Ok(self
             .http
@@ -198,5 +217,42 @@ impl AlpacaPaper {
             price: px.parse()?,
             broker_order_id: o["id"].as_str().map(str::to_string),
         })
+    }
+}
+
+/// If Alpaca refused a sell because the account holds a little less than `requested`, how much it does hold.
+fn balance_shortfall(body: &str, requested: Decimal) -> Option<Decimal> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    if v["code"].as_i64()? != 40310000 {
+        return None;
+    }
+    let available: Decimal = v["available"].as_str()?.parse().ok()?;
+    // Only a small shortfall is a fee. A big one means the ledger and the broker really disagree: do not paper over it.
+    let floor = requested * Decimal::new(98, 2);
+    (available > Decimal::ZERO && available < requested && available >= floor).then_some(available)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ETH: &str = r#"{"available":"4.463251904","balance":"4.463251904","code":40310000,"message":"insufficient balance for ETH (requested: 4.474438, available: 4.463251904)","symbol":"USD"}"#;
+
+    #[test]
+    fn sells_the_balance_when_a_fee_left_it_slightly_short() {
+        let want = Decimal::new(4463251904, 9);
+        assert_eq!(balance_shortfall(ETH, Decimal::new(4474438, 6)), Some(want));
+    }
+
+    #[test]
+    fn a_large_gap_is_not_hidden() {
+        assert_eq!(balance_shortfall(ETH, Decimal::new(10, 0)), None);
+    }
+
+    #[test]
+    fn other_errors_and_junk_are_left_alone() {
+        let other = r#"{"code":40110000,"message":"forbidden"}"#;
+        assert_eq!(balance_shortfall(other, Decimal::new(4474438, 6)), None);
+        assert_eq!(balance_shortfall("not json", Decimal::new(1, 0)), None);
     }
 }
