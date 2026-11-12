@@ -30,7 +30,7 @@ The Desk backtester replays daily candles with each bot's live params, so it now
 - A per-bot row lock serialises risk checks. Sizing and the rules (10% of equity per buy, or up to 20% if the bot's params set `max_position_pct`; five positions; 5-minute cooldown on entries (exits are exempt); no
   equity orders when the market is closed; long only unless a bot's params allow shorts: whole shares, equities only, at most 50% of equity short) live in `risk.rs` as pure functions.
 - Two opt-in circuit breakers stop a bot opening new positions, and never stop it closing one: down 3% on the day (`daily_loss_limit`, measured from the last
-  equity snapshot before New York midnight), or 30% below its best-ever equity (`max_drawdown`). A bot has one only if its params set it; the Crossover, the Rubber Band and the Quant do. The benchmark bot is exempt through
+  equity snapshot before New York midnight), or 30% below its best-ever equity (`max_drawdown`). A bot has one only if its params set it; the Crossover and the Rubber Band do. The benchmark bot is exempt through
   `risk_profile = "benchmark"` in its params, not by slug.
 - Brokers: `sim` fills at the latest price with 2 bp of slippage; `alpaca_paper` submits a market order to Alpaca's paper API and polls for the fill.
   If no Alpaca keys are configured, `alpaca_paper` bots fall back to the simulator and the order records the broker actually used.

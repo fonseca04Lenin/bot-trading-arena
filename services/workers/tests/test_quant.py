@@ -108,10 +108,10 @@ def test_a_long_waits_for_full_reversion_when_exit_is_zero() -> None:
     assert StatArb(exit_=0.0).on_bar("AAPL", s, held, benchmark=m) is None
 
 
-def test_the_seeded_quant_waits_for_a_big_stretch_and_loads_enough_history() -> None:
+def test_the_seeded_quant_uses_the_papers_thresholds_and_loads_enough_history() -> None:
     from arena_workers.common.db import BOT_SEED
     params = next(b["params"] for b in BOT_SEED if b["slug"] == "quant")
     strat = build_strategy("stat-arb", params)
-    assert isinstance(strat, StatArb) and not strat.allow_short and strat.window == 120 and strat.entry == 2.0
-    assert strat.exit == 0.0
+    assert isinstance(strat, StatArb) and not strat.allow_short and strat.window == 60 and strat.entry == 1.25
+    assert strat.exit == 0.5 and "daily_loss_limit" not in params
     assert strat.history_bars >= strat.window + 2

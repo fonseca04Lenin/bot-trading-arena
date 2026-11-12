@@ -14,12 +14,11 @@ Position size is scaled by volatility (the risk-targeting that systematic funds 
 as hard gets half the size, never more than the 10% cap the execution service enforces. With `allow_short` it
 trades both legs as the paper does: it also sells short a stock that is unusually rich against the market.
 
-The live settings (a 120-candle window, entry at 2.0, exit at 0, long leg only) come from a replay of 60 days of
-five-minute candles. At the paper's 1.25 entry the bot earned about 2% before costs and gave all of it back to
-slippage over 480 round trips. Waiting for a 2.0 stretch and holding to full reversion cut the trades by five sixths
-and raised the profit per trade many times over; every neighbouring setting tested (windows 90-120, entries 2.0-2.5)
-stayed profitable in both halves of the sample. The short leg is left off: in the same replay it doubled the trades
-and earned nothing after costs. Sixty days is a small sample, so expect the live edge to be smaller.
+The live bot uses the paper's own thresholds (a 60-candle window, entry at 1.25, exit at 0.5). A replay of 60 days of
+five-minute candles found a slower setting (a 120-candle window, entry at 2.0, exit at 0) that traded about a sixth as
+often and kept more of its profit after costs, but its parameters were chosen on that same sample, so it was not
+adopted. `allow_short` adds the paper's short leg; in the same replay it doubled the trades and earned nothing after
+costs.
 
 Pure functions, no I/O, like the other rule bots. Every threshold below is a tunable parameter, not a claim
 about what real funds run: their actual models are proprietary.

@@ -12,8 +12,8 @@ BOT_COPY: dict[str, str] = {
     "index": "Buys the market once and holds. It puts all its cash in SPY on the first open bar and never sells. "
              "It is the benchmark every other bot has to beat.",
     "quant": "Strips the market's move out of a stock, then bets the leftover snaps back. When a stock is unusually cheap "
-             "against SPY it buys, sized smaller the more the stock swings, and sells once the gap has fully closed. "
-             "It waits for a large gap, so it trades rarely. This is the single-factor form of statistical arbitrage.",
+             "against SPY it buys, sized smaller the more the stock swings, and sells once the gap has closed. "
+             "This is the single-factor form of statistical arbitrage.",
     "orb": "A day trader that only bets on falls. It watches the first five minutes of the session: if that candle closes "
            "down it sells short, with a stop at the other end of the candle, and if it closes up it stays out. It closes "
            "everything before the bell and never holds overnight.",
