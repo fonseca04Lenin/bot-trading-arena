@@ -21,6 +21,7 @@ from ..common.clock import to_et
 from ..common.models import Bar, Position, Side, Signal
 
 SESSION_OPEN = time(9, 30)
+SESSION_CLOSE = time(16, 0)
 EXIT_FROM = time(15, 50)  # the bar that closes at 15:55, leaving the market open long enough to fill
 
 
@@ -41,6 +42,11 @@ class OpeningRange:
     ) -> Signal | None:
         if "/" in symbol or not bars:
             return None  # equities only: the opening range and the close mean nothing for crypto
+        # The database also holds thin pre- and post-market candles (a restart backfills them). If they are left in,
+        # the day's first candle is not 09:30 and the bot neither enters nor closes anything, so it can hold overnight.
+        bars = [b for b in bars if SESSION_OPEN <= to_et(b.ts).time() < SESSION_CLOSE]
+        if not bars:
+            return None
         last = bars[-1]
         et = to_et(last.ts)
         today = [b for b in bars if to_et(b.ts).date() == et.date()]

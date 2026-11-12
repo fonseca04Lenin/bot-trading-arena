@@ -100,3 +100,30 @@ def test_build_strategy_reads_allow_long() -> None:
     off, default = build_strategy("orb", {"allow_long": 0}), build_strategy("orb", {})
     assert isinstance(off, OpeningRange) and isinstance(default, OpeningRange)
     assert off.allow_long is False and default.allow_long is True
+
+
+def _day_with_premarket(until_minutes: int) -> list[Bar]:
+    """Thin pre-market candles from 08:00 ET (a restart's backfill adds these), then the session up to `until`."""
+    pre = [bar(i, 100.0, 100.1, 99.9, 100.0, start=OPEN - timedelta(minutes=90)) for i in range(18)]
+    return pre + [DOWN] + [bar(i, 100.0, 100.2, 99.9, 100.1) for i in range(1, until_minutes // 5 + 1)]
+
+
+def test_pre_market_candles_do_not_stop_it_closing_before_the_bell() -> None:
+    held = Position("SPY", -10, 100.0)
+    bars = _day_with_premarket(6 * 60 + 20)  # the 15:50 candle
+    sig = OpeningRange().on_bar("SPY", bars, held)
+    assert sig is not None and sig.side == "COVER" and "nearly over" in sig.rationale
+
+
+def test_pre_market_candles_do_not_hide_the_opening_candle_either() -> None:
+    pre = [bar(i, 100.0, 100.1, 99.9, 100.0, start=OPEN - timedelta(minutes=90)) for i in range(18)]
+    sig = OpeningRange().on_bar("SPY", pre + [DOWN], None)
+    assert sig is not None and sig.side == "SHORT" and "stop at $100.50" in sig.rationale
+
+
+def test_after_hours_candles_are_ignored_too() -> None:
+    held = Position("SPY", -10, 100.0)
+    close = OPEN + timedelta(hours=6, minutes=30)  # 16:00 ET
+    after = [bar(i, 100.0, 100.1, 99.9, 100.0, start=close) for i in range(3)]
+    # The last candle is an after-hours one: there is nothing to decide on, so it must not act on it.
+    assert OpeningRange().on_bar("SPY", _day_with_premarket(6 * 60 + 15) + after, held) is None
