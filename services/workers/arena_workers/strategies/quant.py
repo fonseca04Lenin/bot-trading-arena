@@ -10,15 +10,9 @@ This follows the single-factor version of Avellaneda & Lee, "Statistical Arbitra
 4. Trade the stretch: buy when the stock is unusually cheap against the market (s <= -1.25), exit once it has
    mostly reverted (s >= -0.50). Those are the paper's thresholds.
 
-Position size is scaled by volatility (the risk-targeting that systematic funds apply): a stock that swings twice
-as hard gets half the size, never more than the 10% cap the execution service enforces. With `allow_short` it
-trades both legs as the paper does: it also sells short a stock that is unusually rich against the market.
-
-The live bot uses the paper's own thresholds (a 60-candle window, entry at 1.25, exit at 0.5). A replay of 60 days of
-five-minute candles found a slower setting (a 120-candle window, entry at 2.0, exit at 0) that traded about a sixth as
-often and kept more of its profit after costs, but its parameters were chosen on that same sample, so it was not
-adopted. `allow_short` adds the paper's short leg; in the same replay it doubled the trades and earned nothing after
-costs.
+Two changes for this arena. The paper trades long/short; the arena is long-only, so only the long leg is
+used. Position size is also scaled by volatility (the risk-targeting that systematic funds apply): a stock
+that swings twice as hard gets half the size, never more than the 10% cap the execution service enforces.
 
 Pure functions, no I/O, like the other rule bots. Every threshold below is a tunable parameter, not a claim
 about what real funds run: their actual models are proprietary.
@@ -72,11 +66,9 @@ class StatArb:
     needs_benchmark = True  # the strategy worker passes SPY's bars in alongside the stock's own
 
     def __init__(self, window: int = 60, entry: float = 1.25, exit_: float = 0.50, max_half_life: float = 30.0,
-                 target_vol: float = 0.20, stop_loss: float = 0.03, allow_short: bool = False) -> None:
+                 target_vol: float = 0.20, stop_loss: float = 0.03) -> None:
         self.window, self.entry, self.exit = window, entry, exit_
         self.max_half_life, self.target_vol, self.stop_loss = max_half_life, target_vol, stop_loss
-        self.allow_short = allow_short
-        self.history_bars = max(120, window + 80)  # spare candles, so gaps against SPY still leave a full window
 
     def on_bar(
         self, symbol: str, bars: Sequence[Bar], position: Position | None,
@@ -85,15 +77,10 @@ class StatArb:
         if symbol == BENCHMARK_SYMBOL or "/" in symbol or not benchmark or not bars:
             return None  # SPY is the factor itself; crypto does not trade against an equity index
         px, ts = bars[-1].c, bars[-1].ts
-        long = position is not None and position.qty > 0
-        if position is not None and long and px < position.avg_cost * (1.0 - self.stop_loss):
+        if position is not None and px < position.avg_cost * (1.0 - self.stop_loss):
             why = (f"Sold {symbol} at ${px:,.2f}: it fell {self.stop_loss:.0%} below the ${position.avg_cost:,.2f} "
                    "entry, so the mean-reversion bet looks broken.")
             return Signal(self.slug, symbol, "SELL", 0.0, why, ts, [])
-        if position is not None and not long and px > position.avg_cost * (1.0 + self.stop_loss):
-            why = (f"Covered {symbol} at ${px:,.2f}: it rose {self.stop_loss:.0%} above the "
-                   f"${position.avg_cost:,.2f} entry, so the mean-reversion bet looks broken.")
-            return Signal(self.slug, symbol, "COVER", 0.0, why, ts, [])
         aligned = _align(bars, benchmark, self.window)
         if aligned is None:
             return None
@@ -124,24 +111,14 @@ class StatArb:
             {"metric": "HALF_LIFE_BARS", "value": round(half_life, 1)},
             {"metric": "ANN_VOL", "value": round(ann_vol, 3)},
         ]
-        size = min(BUY_PCT, max(MIN_PCT, BUY_PCT * self.target_vol / ann_vol)) if ann_vol > 0 else BUY_PCT
-        sized = f"Sized at {size:.1%} of equity because its volatility is {ann_vol:.0%} a year."
         if position is None and s <= -self.entry:
+            size = min(BUY_PCT, max(MIN_PCT, BUY_PCT * self.target_vol / ann_vol)) if ann_vol > 0 else BUY_PCT
             why = (f"Bought {symbol} at ${px:,.2f}: stripped of the market's move (beta {beta:.2f} to {BENCHMARK_SYMBOL}) "
                    f"it sits {abs(s):.2f} standard deviations below its own norm and should revert within about "
-                   f"{half_life:.0f} bars. {sized}")
+                   f"{half_life:.0f} bars. Sized at {size:.1%} of equity because its volatility is {ann_vol:.0%} a year.")
             return Signal(self.slug, symbol, "BUY", size, why, ts, ev)
-        if position is None and self.allow_short and s >= self.entry:
-            why = (f"Sold {symbol} short at ${px:,.2f}: stripped of the market's move (beta {beta:.2f} to "
-                   f"{BENCHMARK_SYMBOL}) it sits {s:.2f} standard deviations above its own norm and should revert "
-                   f"within about {half_life:.0f} bars. {sized}")
-            return Signal(self.slug, symbol, "SHORT", size, why, ts, ev)
-        if position is not None and long and s >= -self.exit:
+        if position is not None and s >= -self.exit:
             why = (f"Sold {symbol} at ${px:,.2f}: the gap to the market has closed, with the s-score back to "
                    f"{s:.2f} from below -{self.entry:.2f}.")
             return Signal(self.slug, symbol, "SELL", 0.0, why, ts, ev)
-        if position is not None and not long and s <= self.exit:
-            why = (f"Covered {symbol} at ${px:,.2f}: the gap to the market has closed, with the s-score back to "
-                   f"{s:.2f} from above {self.entry:.2f}.")
-            return Signal(self.slug, symbol, "COVER", 0.0, why, ts, ev)
         return None
