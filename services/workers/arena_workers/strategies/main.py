@@ -87,8 +87,7 @@ def process_bar(conn: psycopg.Connection[dict[str, Any]], client: httpx.Client, 
     return emitted
 
 
-def main() -> None:
-    log = db.configure_logging("strategies")
+def serve(log: logging.Logger) -> None:
     # Separate connections: running queries on the LISTEN connection mid-iteration would deadlock it.
     with db.connect() as listener, db.connect() as conn, httpx.Client() as client:
         db.seed_bots(conn)
@@ -105,6 +104,11 @@ def main() -> None:
             if time.monotonic() - last_beat > 30:
                 db.heartbeat(conn, "strategies")
                 last_beat = time.monotonic()
+
+
+def main() -> None:
+    log = db.configure_logging("strategies")
+    db.keep_running(log, lambda: serve(log))
 
 
 def run() -> None:

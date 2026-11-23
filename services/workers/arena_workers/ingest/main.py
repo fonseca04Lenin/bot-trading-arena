@@ -50,30 +50,34 @@ async def main() -> None:
     if s.data_source == "synthetic" and s.env == "production":
         raise SystemExit("synthetic market data is not allowed in production")
     conn = db.connect()
-    db.seed_bots(conn)
-    walk = SyntheticWalk()
-    if s.data_source == "alpaca":
-        await backfill_alpaca(conn, AlpacaRest(s))
-        stream = alpaca_stream(s, list(UNIVERSE))
-    else:
-        backfill_synthetic(conn, walk)
-        speed = float(os.environ.get("SYNTHETIC_SPEED", "60"))
-        stream = synthetic_stream(list(UNIVERSE), speed, walk, lambda: datetime.now(UTC))
-    log.info("ingest running source=%s", s.data_source)
-    agg = FiveMinAggregator()
-    last_beat = 0.0
-    async for symbol, bar in stream:
-        db.upsert_bars(conn, symbol, "1Min", [bar])
-        if not is_crypto(symbol) and s.data_source != "synthetic" and not equity_market_open(bar.ts):
-            continue
-        closed = agg.add(symbol, bar)
-        if closed:
-            write_closed_bar(conn, symbol, closed)
-        loop_now = asyncio.get_running_loop().time()
-        if loop_now - last_beat > 30:
-            db.heartbeat(conn, "ingest", {"source": s.data_source})
-            last_beat = loop_now
+    try:
+        db.seed_bots(conn)
+        walk = SyntheticWalk()
+        if s.data_source == "alpaca":
+            await backfill_alpaca(conn, AlpacaRest(s))
+            stream = alpaca_stream(s, list(UNIVERSE))
+        else:
+            backfill_synthetic(conn, walk)
+            speed = float(os.environ.get("SYNTHETIC_SPEED", "60"))
+            stream = synthetic_stream(list(UNIVERSE), speed, walk, lambda: datetime.now(UTC))
+        log.info("ingest running source=%s", s.data_source)
+        agg = FiveMinAggregator()
+        last_beat = 0.0
+        async for symbol, bar in stream:
+            db.upsert_bars(conn, symbol, "1Min", [bar])
+            if not is_crypto(symbol) and s.data_source != "synthetic" and not equity_market_open(bar.ts):
+                continue
+            closed = agg.add(symbol, bar)
+            if closed:
+                write_closed_bar(conn, symbol, closed)
+            loop_now = asyncio.get_running_loop().time()
+            if loop_now - last_beat > 30:
+                db.heartbeat(conn, "ingest", {"source": s.data_source})
+                last_beat = loop_now
+    finally:
+        conn.close()  # a retry opens a fresh connection; do not leave this one dangling
 
 
 def run() -> None:
-    asyncio.run(main())
+    log = db.configure_logging("ingest")
+    db.keep_running(log, lambda: asyncio.run(main()))

@@ -2,7 +2,7 @@ import json
 import logging
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from typing import Any
@@ -45,8 +45,36 @@ BOT_SEED: list[dict[str, Any]] = [
 STARTING_CASH = 100_000
 
 
+CONNECT_TIMEOUT = 10  # seconds: an unreachable database must fail fast so the retry loop below can try again
+RETRY_BASE, RETRY_CAP = 5.0, 60.0  # seconds between attempts, doubling up to the cap
+HEALTHY_AFTER = 120.0  # a run that lasted this long was healthy, so the next failure starts the backoff over
+
+
 def connect(autocommit: bool = True) -> psycopg.Connection[dict[str, Any]]:
-    return psycopg.connect(load_settings().database_url, autocommit=autocommit, row_factory=dict_row)
+    return psycopg.connect(load_settings().database_url, autocommit=autocommit, row_factory=dict_row,
+                           connect_timeout=CONNECT_TIMEOUT)
+
+
+def keep_running(log: logging.Logger, serve: Callable[[], None], *, sleep: Callable[[float], None] = time.sleep,
+                 monotonic: Callable[[], float] = time.monotonic) -> None:
+    """Run `serve` and run it again whenever the database cannot be reached, instead of letting the service die.
+
+    On Nov 22 Railway lost its route to Neon: `serve` failed on its first connection, the process exited, and
+    Railway gave up restarting it, so ingest and the strategy worker stayed down for a day. Only connection
+    failures are retried. Any other error is a bug and still stops the service, so it shows up as a crash.
+    """
+    delay = RETRY_BASE
+    while True:
+        started = monotonic()
+        try:
+            serve()
+            return
+        except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
+            if monotonic() - started >= HEALTHY_AFTER:
+                delay = RETRY_BASE
+            log.error("database unavailable (%s); retrying in %.0fs", str(exc).splitlines()[0][:200], delay)
+            sleep(delay)
+            delay = min(RETRY_CAP, delay * 2)
 
 
 def configure_logging(service: str) -> logging.Logger:
